@@ -8,6 +8,9 @@ final class PHSubscriptionsModel: ObservableObject {
     @Published var needsLogin = false
     @Published var loaded = false
     @Published var nextHref: String?
+    @Published private(set) var sessionRevision: UUID?
+    private weak var library: PHLibrary?
+    func bind(_ library: PHLibrary) { self.library = library }
     private let client = PHClient()
     private var requestTask: Task<Void, Never>?
     private var generation = 0
@@ -23,6 +26,7 @@ final class PHSubscriptionsModel: ObservableObject {
 
     func reload() async {
         cancel()
+        sessionRevision = library?.sessionRevision
         await fetch(href: "/subscriptions", append: false)
     }
 
@@ -40,6 +44,7 @@ final class PHSubscriptionsModel: ObservableObject {
         requestTask?.cancel()
         generation += 1
         let token = generation
+        let owner = sessionRevision
         failedHref = href
         loading = true; error = nil; needsLogin = false
         let client = client
@@ -47,7 +52,7 @@ final class PHSubscriptionsModel: ObservableObject {
             do {
                 let result = try await client.subscriptions(href: href)
                 try Task.checkCancellation()
-                guard let self, self.generation == token else { return }
+                guard let self, self.generation == token, self.library?.sessionRevision == owner else { return }
                 if append {
                     let keys = Set(self.videos.map(\.id))
                     self.videos += result.videos.filter { !keys.contains($0.id) }
@@ -55,14 +60,14 @@ final class PHSubscriptionsModel: ObservableObject {
                 self.nextHref = result.nextHref
                 self.loaded = true
             } catch {
-                guard let self, !Task.isCancelled, self.generation == token else { return }
+                guard let self, !Task.isCancelled, self.generation == token, self.library?.sessionRevision == owner else { return }
                 if case PHSubscriptionError.signIn = error {
                     self.videos = []; self.nextHref = nil; self.loaded = false
                     self.needsLogin = true
                 }
                 self.error = error.localizedDescription
             }
-            guard let self, self.generation == token else { return }
+            guard let self, self.generation == token, self.library?.sessionRevision == owner else { return }
             self.loading = false
         }
         requestTask = task
@@ -94,7 +99,7 @@ struct PHServerSubscriptionsView: View {
                 if model.loaded && model.videos.isEmpty {
                     ContentUnavailableView("暂无订阅更新", systemImage: "person.2", description: Text("官网已返回空的视频列表"))
                 }
-                ForEach(model.videos) { video in
+                ForEach(model.sessionRevision == library.sessionRevision ? model.videos : []) { video in
                     Button {
                         library.remember(video)
                         path.append(PHRoute.video(video))
@@ -131,7 +136,7 @@ struct PHServerSubscriptionsView: View {
         .background(PHTheme.background)
         .navigationTitle("订阅")
         .toolbar { Button("刷新") { Task { await model.reload() } }.accessibilityIdentifier("subscriptions.refresh") }
-        .task(id: library.sessionRevision) { await model.reload() }
+        .task(id: library.sessionRevision) { model.bind(library); await model.reload() }
         .refreshable { await model.reload() }
         .onDisappear { model.cancel() }
     }

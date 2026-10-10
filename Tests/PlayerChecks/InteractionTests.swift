@@ -64,6 +64,8 @@ final class InteractionTests: XCTestCase {
         waitForExpectations(timeout: 5)
         XCTAssertFalse(app.staticTexts["Fixture tr page 2"].exists)
         // The fixture's first lg request fails; native retry resends same selection.
+        // The real native bar intentionally overflows horizontally, like the site.
+        app.scrollViews["profile.filters"].swipeLeft()
         app.buttons["更多"].tap()
         app.buttons["最长"].tap()
         let retry = app.buttons["重试"]

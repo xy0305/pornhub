@@ -219,6 +219,7 @@ struct PHProfileView: View {
                         .frame(minHeight: 44)
                         .padding(.horizontal, 16)
                     }
+                    .accessibilityIdentifier("profile.filters")
                     Text("当前：\(model.selected)").font(.caption).padding(.horizontal, 16)
                 } else if model.profile != nil {
                     Text("该来源未提供视频筛选").font(.caption).padding(.horizontal, 16)
@@ -252,8 +253,8 @@ struct PHProfileView: View {
         .background(PHTheme.background)
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await model.load()
+        .task(id: library.sessionRevision) {
+            await model.load(session: library.sessionRevision)
             if let profile = model.profile {
                 model.subscribed = library.isSubscribed(profile) || profile.subscribed
             }
@@ -285,7 +286,18 @@ final class PHProfileModel: ObservableObject {
     @Published var requestDescription = ""
     private var currentHref: String
     private var generation = 0
+    private var accountRevision: UUID?
     init(href: String) { self.href = href; self.currentHref = href }
+
+    func load(session: UUID) async {
+        if let previous = accountRevision, previous != session {
+            generation += 1
+            profile = nil; subscribed = false; loading = false
+            nextPage = nil; error = nil; message = nil
+        }
+        accountRevision = session
+        await load()
+    }
 
     func load() async {
         guard profile == nil, !loading else { return }
