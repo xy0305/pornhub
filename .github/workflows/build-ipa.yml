@@ -33,7 +33,7 @@ jobs:
           xcodebuild -version
 
       - name: Run native UI architecture contracts
-        run: python3 Tests/UIChecks/check.py
+        run: python3 Tests/PlayerChecks/ui_check.py
 
       - name: Run player architecture regression guards
         run: |

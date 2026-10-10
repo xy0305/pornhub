@@ -11,7 +11,7 @@
 ## 验证与构建
 
 ```sh
-python3 Tests/UIChecks/check.py
+python3 Tests/PlayerChecks/ui_check.py
 python3 Tests/PlayerChecks/check.py
 python3 Tests/ParserRegression/check.py Tests/Fixtures
 ```
