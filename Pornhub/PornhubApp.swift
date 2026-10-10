@@ -15,6 +15,10 @@ struct PornhubApp: App {
                         PHQuality(label: "360p", height: 360, url: URL(string: "http://127.0.0.1:9/360.mp4")!, isDefault: true),
                         PHQuality(label: "720p", height: 720, url: URL(string: "http://127.0.0.1:9/720.mp4")!, isDefault: false)
                     ])
+                } else if ProcessInfo.processInfo.arguments.contains("-PHProfileFixture") {
+                    NavigationStack {
+                        PHProfileView(href: "/model/fixture/videos", name: "Fixture Author", path: .constant(NavigationPath()))
+                    }
                 } else {
                     PHRootView()
                 }

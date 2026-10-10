@@ -189,8 +189,47 @@ struct PHProfileView: View {
                 if let about = model.profile?.about, !about.isEmpty {
                     Text(about).font(.system(size: 14)).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
                 }
-                if let message = model.error, (model.profile?.videos.isEmpty ?? true) {
-                    PHErrorBanner(message: message) { Task { await model.load() } }
+                Text("作者视频").font(.headline).padding(.horizontal, 16)
+                if !model.sorts.isEmpty || !model.sources.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            if !model.sources.isEmpty {
+                                Menu {
+                                    ForEach(model.sources) { choice in
+                                        Button(choice.title) { Task { await model.select(choice) } }
+                                    }
+                                } label: { Image(systemName: "line.3.horizontal.decrease") .frame(width: 44, height: 44) }
+                                .accessibilityLabel("视频类型筛选")
+                            }
+                            Button("默认") { Task { await model.select(nil) } }
+                                .accessibilityIdentifier("profile.sort.default")
+                            ForEach(model.sorts.filter { $0.title != "最长" }) { choice in
+                                Button(choice.title) { Task { await model.select(choice) } }
+                                    .accessibilityIdentifier("profile.sort.\(choice.title)")
+                            }
+                            if model.sorts.contains(where: { $0.title == "最长" }) {
+                                Menu("更多") {
+                                    ForEach(model.sorts.filter { $0.title == "最长" }) { choice in
+                                        Button(choice.title) { Task { await model.select(choice) } }
+                                    }
+                                }
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(minHeight: 44)
+                        .padding(.horizontal, 16)
+                    }
+                    Text("当前：\(model.selected)").font(.caption).padding(.horizontal, 16)
+                } else if model.profile != nil {
+                    Text("该来源未提供视频筛选").font(.caption).padding(.horizontal, 16)
+                }
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-PHProfileFixture") {
+                    Text(model.requestDescription).font(.caption2).accessibilityIdentifier("profile.request")
+                }
+                #endif
+                if let message = model.error {
+                    PHErrorBanner(message: message) { Task { await model.retry() } }
                 }
                 ForEach(model.profile?.videos ?? []) { video in
                     Button {
@@ -200,6 +239,11 @@ struct PHProfileView: View {
                         PHVideoCard(video: video)
                     }
                     .buttonStyle(.plain)
+                }
+                if model.nextPage != nil {
+                    Button("加载更多") { Task { await model.more() } }
+                        .accessibilityIdentifier("profile.more")
+                        .disabled(model.loading)
                 }
                 if model.loading { PHLoading() }
             }
@@ -234,15 +278,62 @@ final class PHProfileModel: ObservableObject {
     @Published var message: String?
     private let href: String
     private let client = PHClient()
-    init(href: String) { self.href = href }
+    @Published var sorts: [PHProfileChoice] = []
+    @Published var sources: [PHProfileChoice] = []
+    @Published var selected = "默认"
+    @Published var nextPage: Int?
+    @Published var requestDescription = ""
+    private var currentHref: String
+    private var generation = 0
+    init(href: String) { self.href = href; self.currentHref = href }
 
     func load() async {
         guard profile == nil, !loading else { return }
+        await fetch(page: 1, generation: generation)
+    }
+
+    func select(_ choice: PHProfileChoice?) async {
+        generation += 1
+        currentHref = choice?.href ?? href
+        selected = choice?.title ?? "默认"
+        profile?.videos = []
+        nextPage = nil
+        error = nil
+        await fetch(page: 1, generation: generation)
+    }
+
+    func more() async {
+        guard !loading, let nextPage else { return }
+        await fetch(page: nextPage, generation: generation)
+    }
+
+    func retry() async {
+        guard !loading else { return }
+        await fetch(page: nextPage ?? 1, generation: generation)
+    }
+
+    private func fetch(page: Int, generation token: Int) async {
         loading = true
+        error = nil
+        let target = currentHref
         do {
-            profile = try await client.profile(href: href)
-            subscribed = profile?.subscribed ?? false
+            let result = try await client.profilePage(href: target, page: page)
+            guard token == generation else { return }
+            var updated = result.profile
+            if page > 1 {
+                let old = profile?.videos ?? []
+                let ids = Set(old.map(\.id))
+                updated.videos = old + updated.videos.filter { !ids.contains($0.id) }
+            }
+            currentHref = PHProfileFilters.requestURL(href: result.requestURL.absoluteString, page: 1).absoluteString
+            profile = updated
+            sorts = result.sorts
+            sources = result.sources
+            nextPage = result.nextPage
+            requestDescription = result.requestURL.absoluteString
+            subscribed = updated.subscribed
         } catch {
+            guard token == generation else { return }
             self.error = error.localizedDescription
         }
         loading = false

@@ -170,6 +170,19 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         super.customizeUIComponents()
         configureProgress()
         configureTransport()
+        // Official KSPlayer 2.3.4 inserts this into navigationBar (UIStackView).
+        // Remove its arranged layout before pinning the SAME target/action button.
+        navigationBar.removeArrangedSubview(backButton)
+        backButton.removeFromSuperview()
+        addSubview(backButton)
+        backButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            backButton.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12),
+            backButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 4)
+        ])
+        backButton.accessibilityIdentifier = "player.back"
+        backButton.backgroundColor = UIColor.black.withAlphaComponent(0.68)
+        backButton.layer.cornerRadius = 12
         // Reject touches in control bars before the player's recognizers begin.
         [panGesture, tapGesture, doubleTapGesture, longPressGesture].forEach { $0.delegate = self }
         // Quality must not compete with time/rate/subtitle buttons for toolbar

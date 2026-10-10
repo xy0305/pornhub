@@ -86,6 +86,26 @@ actor PHClient {
         PHParser.suggestions(in: try await text(url: Self.origin))
     }
 
+    func profilePage(href: String, page: Int) async throws -> PHProfilePage {
+        let target = PHProfileFilters.requestURL(href: href, page: page)
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PHProfileFixture") {
+            return try await PHProfileFixture.load(url: target, page: page)
+        }
+        #endif
+        let html = try await text(url: target)
+        guard !html.contains("<title>Page Not Found</title>") else { throw URLError(.badServerResponse) }
+        if page == 1, let entry = PHProfileFilters.videoEntry(in: html, href: href),
+           PHProfileFilters.choices(in: html, href: href, sorts: true).isEmpty {
+            let videosURL = PHProfileFilters.requestURL(href: entry, page: 1)
+            var result = PHProfileFilters.parse(html: try await text(url: videosURL), href: href, page: 1, url: videosURL)
+            let header = PHParser.profile(in: html, href: href)
+            if result.profile.avatar.isEmpty { result.profile.avatar = header.avatar }
+            return result
+        }
+        return PHProfileFilters.parse(html: html, href: href, page: page, url: target)
+    }
+
     func profile(href: String) async throws -> PHProfile {
         PHParser.profile(in: try await text(url: PHParser.absolute(href).asURL ?? Self.origin), href: href)
     }

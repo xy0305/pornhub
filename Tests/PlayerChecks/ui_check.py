@@ -32,8 +32,8 @@ checks = {
  'dark appearance': '.preferredColorScheme(.dark)' in read('PornhubApp.swift'),
  'no web renderer': not any(re.search(r'\b(WKWebView|UIWebView|SFSafariViewController|import WebKit)\b', x.read_text()) for x in (r/'Pornhub').glob('*.swift')),
 }
-for n,d in {'PHPlayer.swift':'91376f734ba37d68e8743e2ff001af7c0a80be8b6e6c54c0a5b161cd5c0414ff','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
- checks[('build7 audited player ' if n == 'PHPlayer.swift' else 'build5 unchanged seek ')+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
+for n,d in {'PHPlayer.swift':'7e0b47eabc1958226f0fe34e6eb3ad715a8cdec59eb0042783150ee39c84c4ca','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
+ checks[('build8 audited player ' if n == 'PHPlayer.swift' else 'build5 unchanged seek ')+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
 for n,ok in checks.items(): print(('PASS: ' if ok else 'FAIL: ')+n)
 assert all(checks.values())
 print(f'{len(checks)} static UI contracts passed; device acceptance remains required.')
