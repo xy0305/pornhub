@@ -1,7 +1,9 @@
 import SwiftUI
+import KSPlayer
 
 @main
 struct PornhubApp: App {
+    @UIApplicationDelegateAdaptor(PHAppDelegate.self) private var appDelegate
     @StateObject private var library = PHLibrary()
 
     var body: some Scene {
@@ -10,6 +12,13 @@ struct PornhubApp: App {
                 .environmentObject(library)
                 .preferredColorScheme(.dark)
         }
+    }
+}
+
+/// KSPlayer documents this delegate bridge for its orientation mask.
+final class PHAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        KSOptions.supportedInterfaceOrientations
     }
 }
 

@@ -1,265 +1,234 @@
 import SwiftUI
-import Combine
 import AVFoundation
 import KSPlayer
 
 struct PHPlayer: View {
     let qualities: [PHQuality]
-    @State private var selectedID: String
-    @State private var fullscreen = false
-    @State private var showQualities = false
-    @State private var currentTime: Double = 0
-    @State private var duration: Double = 0
-    @State private var seeking = false
-    @State private var videoSize: CGSize = .zero
-    @StateObject private var coordinator = KSVideoPlayer.Coordinator()
-
-    init(qualities: [PHQuality]) {
-        self.qualities = qualities
-        let preferred = qualities.first { $0.isDefault } ?? qualities.first
-        _selectedID = State(initialValue: preferred?.id ?? "")
-    }
 
     var body: some View {
-        stage(fullscreen: false)
-            .fullScreenCover(isPresented: $fullscreen) {
-                PHLandscapeHost {
-                    stage(fullscreen: true)
-                }
-                .ignoresSafeArea()
-                .onAppear { PHOrientationLock.set(.landscapeRight) }
-                .onDisappear { PHOrientationLock.set(.portrait) }
-            }
-            .onAppear { activateAudio() }
-            .onDisappear { coordinator.playerLayer?.pause() }
+        PHPlayerHost(qualities: qualities)
+            .aspectRatio(16.0 / 9.0, contentMode: .fit)
+            .background(Color.black)
+    }
+}
+
+/// One UIKit owner, one IOSVideoPlayerView. Fullscreen reparents that same view,
+/// as in KSPlayer's IOSVideoPlayerView.updateUI(isFullScreen:), not a second
+/// KSVideoPlayer representable sharing a Coordinator (whose dismantle resets it).
+private struct PHPlayerHost: UIViewControllerRepresentable {
+    let qualities: [PHQuality]
+
+    func makeUIViewController(context: Context) -> PHPlaybackController {
+        PHPlaybackController()
     }
 
-    private func stage(fullscreen: Bool) -> some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color.black
-                if let quality = selected {
-                    KSVideoPlayer(coordinator: coordinator, url: quality.url, options: playbackOptions)
-                        .frame(width: fittedSize(in: proxy.size).width, height: fittedSize(in: proxy.size).height)
-                        .onAppear { applyAspectFit() }
-                } else {
-                    ContentUnavailableView("没有可播放的画质", systemImage: "play.slash")
-                }
-                controls(fullscreen: fullscreen, safe: proxy.safeAreaInsets)
-                if fullscreen { progressBar(safe: proxy.safeAreaInsets) }
-                if showQualities { qualityPanel(fullscreen: fullscreen, safe: proxy.safeAreaInsets) }
-            }
-            .frame(width: proxy.size.width, height: proxy.size.height)
+    func updateUIViewController(_ controller: PHPlaybackController, context: Context) {
+        controller.configure(qualities: qualities)
+    }
+
+    static func dismantleUIViewController(_ controller: PHPlaybackController, coordinator: ()) {
+        controller.dispose()
+    }
+}
+
+private final class PHPlaybackController: UIViewController {
+    private let player = PHNativePlayerView(frame: .zero)
+    private var qualities: [PHQuality] = []
+    private var playerConstraints: [NSLayoutConstraint] = []
+    private var fullscreenController: PHLandscapeController?
+    private var transitioning = false
+    private var disposed = false
+
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        attachPlayer(to: view)
+        player.fullscreenAction = { [weak self] fullscreen in
+            self?.setFullscreen(fullscreen)
         }
-        .aspectRatio(fullscreen ? nil : 16.0 / 9.0, contentMode: .fit)
-        .frame(maxWidth: .infinity, maxHeight: fullscreen ? .infinity : nil)
-        .background(Color.black)
-        .clipped()
+        player.backBlock = { [weak self] in self?.setFullscreen(false) }
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+        try? AVAudioSession.sharedInstance().setActive(true)
     }
 
-    /// Letterbox inside the stage. Never stretch a portrait frame to fill landscape.
-    private func fittedSize(in container: CGSize) -> CGSize {
-        let source = videoSize.width > 1 && videoSize.height > 1 ? videoSize : CGSize(width: 16, height: 9)
-        let scale = min(container.width / source.width, container.height / source.height)
-        guard scale.isFinite, scale > 0 else { return container }
-        return CGSize(width: source.width * scale, height: source.height * scale)
-    }
-
-    private func controls(fullscreen: Bool, safe: EdgeInsets) -> some View {
-        VStack {
-            HStack(spacing: 8) {
-                if fullscreen {
-                    controlButton("chevron.left", label: "退出横屏") {
-                        showQualities = false
-                        self.fullscreen = false
-                    }
-                }
-                Spacer(minLength: 8)
-                qualityButton
-                controlButton(fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", label: fullscreen ? "退出横屏" : "横屏播放") {
-                    showQualities = false
-                    self.fullscreen.toggle()
-                }
-            }
-            .padding(.leading, max(safe.leading, fullscreen ? 20 : 10))
-            .padding(.trailing, max(safe.trailing, fullscreen ? 20 : 10))
-            .padding(.top, max(safe.top, fullscreen ? 12 : 6))
-            Spacer()
+    func configure(qualities: [PHQuality]) {
+        loadViewIfNeeded()
+        guard !disposed, self.qualities != qualities else { return }
+        self.qualities = qualities
+        guard !qualities.isEmpty else {
+            player.resetPlayer()
+            player.playerLayer = nil
+            return
         }
-        .foregroundStyle(.white)
+        let definitions = qualities.map { quality in
+            KSPlayerResourceDefinition(url: quality.url, definition: quality.label, options: playbackOptions())
+        }
+        let preferred = qualities.firstIndex(where: { $0.isDefault }) ?? 0
+        player.set(resource: KSPlayerResource(name: "", definitions: definitions), definitionIndex: preferred)
+        player.playerLayer?.player.contentMode = .scaleAspectFit
+        player.setFullscreenControls(fullscreenController != nil)
     }
 
-    private var qualityButton: some View {
-        Button {
-            showQualities.toggle()
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 13, weight: .bold))
-                Text(selected?.label ?? "画质")
-                    .font(.system(size: 15, weight: .bold))
-                Image(systemName: showQualities ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11, weight: .bold))
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 40)
-            .background(.black.opacity(0.72), in: Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("画质")
-    }
-
-    private func progressBar(safe: EdgeInsets) -> some View {
-        VStack {
-            Spacer()
-            HStack(spacing: 10) {
-                Text(PHParser.duration(Int(currentTime)))
-                Slider(
-                    value: Binding(get: { currentTime }, set: { currentTime = $0 }),
-                    in: 0...max(duration, 1),
-                    onEditingChanged: { editing in
-                        seeking = editing
-                        if !editing {
-                            coordinator.playerLayer?.seek(time: currentTime, autoPlay: true, completion: { _ in })
-                        }
-                    }
-                )
-                .tint(.white)
-                Text(PHParser.duration(Int(duration)))
-            }
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(.white)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background(.black.opacity(0.35))
-            .padding(.bottom, max(safe.bottom, 8))
-        }
-        .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
-            guard fullscreen, !seeking else { return }
-            refreshPlayback()
-        }
-    }
-
-    private func qualityPanel(fullscreen: Bool, safe: EdgeInsets) -> some View {
-        ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.28)
-                .contentShape(Rectangle())
-                .onTapGesture { showQualities = false }
-            VStack(alignment: .trailing, spacing: 8) {
-                ForEach(qualities) { quality in
-                    Button {
-                        switchQuality(quality)
-                        showQualities = false
-                    } label: {
-                        HStack {
-                            Text(quality.label)
-                            if quality.id == selectedID {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                        .font(.system(size: 16, weight: .semibold))
-                        .frame(minWidth: 132, alignment: .leading)
-                        .padding(.vertical, 11)
-                        .padding(.horizontal, 16)
-                        .background(quality.id == selectedID ? Color.orange : Color.black.opacity(0.9), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.top, max(safe.top, fullscreen ? 12 : 6) + 52)
-            .padding(.trailing, max(safe.trailing, 16) + 56)
-        }
-        .foregroundStyle(.white)
-    }
-
-    private func controlButton(_ system: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: system)
-                .font(.system(size: 17, weight: .semibold))
-                .frame(width: 40, height: 40)
-                .background(.black.opacity(0.72), in: Circle())
-                .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-
-    private var selected: PHQuality? { qualities.first { $0.id == selectedID } ?? qualities.first }
-
-    private var playbackOptions: KSOptions {
+    private func playbackOptions() -> KSOptions {
         let options = KSOptions()
-        options.appendHeader([
-            "Referer": "https://cn.pornhub.com/",
-            "Origin": "https://cn.pornhub.com"
-        ])
+        options.appendHeader(["Referer": "https://cn.pornhub.com/", "Origin": "https://cn.pornhub.com"])
         options.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
         options.referer = "https://cn.pornhub.com/"
         KSOptions.isAutoPlay = true
         return options
     }
 
-    private func refreshPlayback() {
-        currentTime = coordinator.playerLayer?.player.currentPlaybackTime ?? currentTime
-        let total = coordinator.playerLayer?.player.duration ?? 0
-        if total > 0 { duration = total }
-        let size = coordinator.playerLayer?.player.naturalSize ?? .zero
-        if size.width > 1, size.height > 1, size != videoSize {
-            videoSize = size
+    private func attachPlayer(to container: UIView) {
+        // Explicitly remove the old host's constraints before changing superview.
+        NSLayoutConstraint.deactivate(playerConstraints)
+        player.removeFromSuperview()
+        container.addSubview(player)
+        player.translatesAutoresizingMaskIntoConstraints = false
+        let safe = container.safeAreaLayoutGuide
+        playerConstraints = [
+            player.topAnchor.constraint(equalTo: safe.topAnchor),
+            player.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
+            player.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
+            player.bottomAnchor.constraint(equalTo: safe.bottomAnchor)
+        ]
+        NSLayoutConstraint.activate(playerConstraints)
+        container.layoutIfNeeded()
+    }
+
+    private func setFullscreen(_ fullscreen: Bool) {
+        guard !disposed, !transitioning else { return }
+        if fullscreen {
+            guard fullscreenController == nil, view.window != nil else { return }
+            transitioning = true
+            let controller = PHLandscapeController()
+            controller.modalPresentationStyle = .fullScreen
+            controller.modalTransitionStyle = .crossDissolve
+            controller.isModalInPresentation = true
+            fullscreenController = controller
+            controller.loadViewIfNeeded()
+            attachPlayer(to: controller.view)
+            player.setFullscreenControls(true)
+            KSOptions.supportedInterfaceOrientations = .landscapeRight
+            present(controller, animated: true) { [weak self] in
+                guard let self else { return }
+                self.transitioning = false
+                PHOrientationLock.set(.landscapeRight, from: controller)
+                controller.view.layoutIfNeeded()
+            }
+        } else {
+            guard let controller = fullscreenController else { return }
+            transitioning = true
+            PHOrientationLock.set(.portrait, from: self)
+            controller.dismiss(animated: true) { [weak self] in
+                guard let self else { return }
+                self.fullscreenController = nil
+                self.transitioning = false
+                guard !self.disposed else { return }
+                self.attachPlayer(to: self.view)
+                self.player.setFullscreenControls(false)
+                PHOrientationLock.set(.portrait, from: self)
+            }
         }
-        applyAspectFit()
     }
 
-    private func applyAspectFit() {
-        coordinator.isScaleAspectFill = false
-        coordinator.playerLayer?.player.contentMode = .scaleAspectFit
-    }
-
-    private func switchQuality(_ quality: PHQuality) {
-        let time = coordinator.playerLayer?.player.currentPlaybackTime ?? currentTime
-        selectedID = quality.id
-        videoSize = .zero
-        coordinator.playerLayer?.set(url: quality.url, options: playbackOptions)
-        applyAspectFit()
-        guard time > 1 else { return }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            coordinator.playerLayer?.seek(time: time, autoPlay: true, completion: { _ in })
-            applyAspectFit()
-        }
-    }
-
-    private func activateAudio() {
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-        try? AVAudioSession.sharedInstance().setActive(true)
+    func dispose() {
+        guard !disposed else { return }
+        disposed = true
+        player.fullscreenAction = nil
+        player.backBlock = nil
+        player.resetPlayer()
+        player.playerLayer = nil
+        fullscreenController?.dismiss(animated: false)
+        fullscreenController = nil
+        NSLayoutConstraint.deactivate(playerConstraints)
+        player.removeFromSuperview()
+        PHOrientationLock.set(.portrait, from: self)
     }
 }
 
-struct PHLandscapeHost<Content: View>: UIViewControllerRepresentable {
-    let content: Content
-    init(@ViewBuilder content: () -> Content) { self.content = content() }
-    func makeUIViewController(context: Context) -> PHLandscapeController<Content> { PHLandscapeController(rootView: content) }
-    func updateUIViewController(_ controller: PHLandscapeController<Content>, context: Context) { controller.rootView = content }
+/// Keep KSPlayer's native transport, progress and definition menu. Only replace
+/// its presentation hook: the app owns a scene-aware landscape-only controller.
+private final class PHNativePlayerView: IOSVideoPlayerView {
+    var fullscreenAction: ((Bool) -> Void)?
+
+    override func customizeUIComponents() {
+        super.customizeUIComponents()
+        // Quality must not compete with time/rate/subtitle buttons for toolbar
+        // width. Reuse the official UIMenu button in a bounded safe-area slot.
+        let quality = toolBar.definitionButton
+        toolBar.removeArrangedSubview(quality)
+        quality.removeFromSuperview()
+        addSubview(quality)
+        quality.translatesAutoresizingMaskIntoConstraints = false
+        quality.backgroundColor = UIColor.black.withAlphaComponent(0.75)
+        quality.layer.cornerRadius = 18
+        quality.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
+        quality.titleLabel?.lineBreakMode = .byTruncatingTail
+        quality.accessibilityLabel = "画质"
+        NSLayoutConstraint.activate([
+            quality.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 4),
+            quality.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            quality.widthAnchor.constraint(equalToConstant: 132),
+            quality.heightAnchor.constraint(equalToConstant: 40)
+        ])
+        setFullscreenControls(false)
+    }
+
+    override func updateUI(isFullScreen: Bool) {
+        fullscreenAction?(isFullScreen)
+    }
+
+    func setFullscreenControls(_ fullscreen: Bool) {
+        landscapeButton.isSelected = fullscreen
+        landscapeButton.isHidden = false
+        landscapeButton.accessibilityLabel = fullscreen ? "退出横屏" : "横屏播放"
+        backButton.isHidden = !fullscreen
+        lockButton.isHidden = true
+        // Keep transport compact even on a 320pt inline stage. Native quality
+        // remains independently visible while transport masks auto-hide.
+        toolBar.playbackRateButton.isHidden = true
+        toolBar.audioSwitchButton.isHidden = true
+        toolBar.videoSwitchButton.isHidden = true
+        toolBar.srtButton.isHidden = true
+        toolBar.pipButton.isHidden = true
+        isMaskShow = true
+        if let resource, resource.definitions.indices.contains(currentDefinition) {
+            toolBar.definitionButton.isHidden = false
+            toolBar.definitionButton.setTitle("画质 · " + resource.definitions[currentDefinition].definition, for: .normal)
+        }
+    }
+
+    override func player(layer: KSPlayerLayer, state: KSPlayerState) {
+        super.player(layer: layer, state: state)
+        layer.player.contentMode = .scaleAspectFit
+        setFullscreenControls(landscapeButton.isSelected)
+    }
 }
 
-final class PHLandscapeController<Content: View>: UIHostingController<Content> {
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+private final class PHLandscapeController: UIViewController {
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscapeRight }
     override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation { .landscapeRight }
     override var shouldAutorotate: Bool { true }
     override var prefersStatusBarHidden: Bool { true }
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        PHOrientationLock.set(.landscapeRight)
+    override var prefersHomeIndicatorAutoHidden: Bool { true }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
     }
 }
 
 enum PHOrientationLock {
-    static func set(_ mask: UIInterfaceOrientationMask) {
-        let resolved: UIInterfaceOrientationMask = UIDevice.current.userInterfaceIdiom == .pad && mask == .portrait ? .all : mask
-        KSOptions.supportedInterfaceOrientations = resolved
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        scene?.requestGeometryUpdate(UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: resolved)) { _ in }
-        scene?.windows.forEach { $0.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations() }
+    static func set(_ mask: UIInterfaceOrientationMask, from controller: UIViewController) {
+        KSOptions.supportedInterfaceOrientations = mask
+        controller.setNeedsUpdateOfSupportedInterfaceOrientations()
+        // Never pick connectedScenes.first: that can rotate another window.
+        guard let scene = controller.viewIfLoaded?.window?.windowScene else { return }
+        scene.windows.forEach { $0.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations() }
+        scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask)) { error in
+            NSLog("Player orientation request failed: %@", error.localizedDescription)
+        }
     }
 }
