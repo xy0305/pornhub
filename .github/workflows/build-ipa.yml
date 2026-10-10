@@ -33,7 +33,11 @@ jobs:
           xcodebuild -version
 
       - name: Run player architecture regression guards
-        run: python3 Tests/PlayerChecks/check.py
+        run: |
+          set -euo pipefail
+          python3 Tests/PlayerChecks/check.py
+          swiftc -parse-as-library Pornhub/PHSeekSession.swift Tests/PlayerChecks/SeekRegression.swift -o /tmp/ph-seek-tests
+          /tmp/ph-seek-tests
 
       - name: Run catalog regression tests
         run: |
