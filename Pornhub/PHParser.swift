@@ -494,33 +494,33 @@ enum PHParser {
 private extension String {
     var decodingUnicodeEscapes: String {
         var result = ""
-        var index = startIndex
-        while index < endIndex {
-            if self[index] == "\\", let last = self.index(endIndex, offsetBy: -1, limitedBy: startIndex), index < last {
-                let next = self.index(after: index)
-                if self[next] == "u", let end = self.index(index, offsetBy: 6, limitedBy: endIndex) {
-                    let hex = self[self.index(index, offsetBy: 2)..<end]
+        var cursor = startIndex
+        while cursor < endIndex {
+            if self[cursor] == "\\", let last = self.index(endIndex, offsetBy: -1, limitedBy: startIndex), cursor < last {
+                let next = self.index(after: cursor)
+                if self[next] == "u", let end = self.index(cursor, offsetBy: 6, limitedBy: endIndex) {
+                    let hex = self[self.index(cursor, offsetBy: 2)..<end]
                     if let value = UInt32(hex, radix: 16), let scalar = UnicodeScalar(value) {
                         result.append(Character(scalar))
-                        index = end
+                        cursor = end
                         continue
                     }
                 }
             }
-            if self[index] == "&", let hash = index(index, offsetBy: 2, limitedBy: endIndex), self[self.index(after: index)] == "#" {
+            if self[cursor] == "&", let hash = self.index(cursor, offsetBy: 2, limitedBy: endIndex), self[self.index(after: cursor)] == "#" {
                 let start = hash
                 if let semi = self[start...].firstIndex(of: ";") {
                     let body = self[start..<semi]
                     let number = body.hasPrefix("x") ? UInt32(body.dropFirst(), radix: 16) : UInt32(body)
                     if let number, let scalar = UnicodeScalar(number) {
                         result.append(Character(scalar))
-                        index = self.index(after: semi)
+                        cursor = self.index(after: semi)
                         continue
                     }
                 }
             }
-            result.append(self[index])
-            index = self.index(after: index)
+            result.append(self[cursor])
+            cursor = self.index(after: cursor)
         }
         return result
     }
