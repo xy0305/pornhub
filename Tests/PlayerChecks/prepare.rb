@@ -7,6 +7,7 @@ t.add_dependency(app)
 f = p.main_group.new_file('Tests/PlayerChecks/InteractionTests.swift')
 t.source_build_phase.add_file_reference(f)
 t.build_configurations.each do |c|
+  c.build_settings['PRODUCT_NAME'] = '$(TARGET_NAME)'
   c.build_settings['PRODUCT_BUNDLE_IDENTIFIER'] = 'com.xy0305.Pornhub.InteractionTests'
   c.build_settings['GENERATE_INFOPLIST_FILE'] = 'YES'
   c.build_settings['SWIFT_VERSION'] = '5.0'
