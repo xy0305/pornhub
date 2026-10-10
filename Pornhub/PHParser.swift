@@ -496,7 +496,7 @@ private extension String {
         var result = ""
         var index = startIndex
         while index < endIndex {
-            if self[index] == "\\", index < index(before: endIndex) {
+            if self[index] == "\\", let last = self.index(endIndex, offsetBy: -1, limitedBy: startIndex), index < last {
                 let next = self.index(after: index)
                 if self[next] == "u", let end = self.index(index, offsetBy: 6, limitedBy: endIndex) {
                     let hex = self[self.index(index, offsetBy: 2)..<end]
