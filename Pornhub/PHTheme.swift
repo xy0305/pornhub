@@ -102,6 +102,12 @@ final class PHLibrary: ObservableObject {
         return value
     }
 
+    private static func videos(_ key: String) -> [PHVideo] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let value = try? JSONDecoder().decode([PHVideo].self, from: data) else { return [] }
+        return value
+    }
+
     private static func account(_ key: String) -> PHAccount? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(PHAccount.self, from: data)
