@@ -467,6 +467,7 @@ private final class PHProgressSlider: UISlider {
         let track = trackRect(forBounds: bounds)
         let center = thumbRect(forBounds: bounds, trackRect: track, value: value).midX
         thumbOffset = abs(point.x - center) <= 22 ? point.x - center : 0
+        isHighlighted = true
         updateValue(at: point)
         return true
     }
@@ -479,7 +480,13 @@ private final class PHProgressSlider: UISlider {
 
     override func endTracking(_ touch: UITouch?, with event: UIEvent?) {
         if let touch { updateValue(at: touch.location(in: self)) }
+        isHighlighted = false
         super.endTracking(touch, with: event)
+    }
+
+    override func cancelTracking(with event: UIEvent?) {
+        isHighlighted = false
+        super.cancelTracking(with: event)
     }
 
     override func accessibilityIncrement() { adjustAccessibility(by: 1) }
