@@ -1,0 +1,5 @@
+DerivedData/
+*.ipa
+Payload/
+.DS_Store
+xcuserdata/
