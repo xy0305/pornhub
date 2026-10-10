@@ -11,6 +11,7 @@ struct PHPlayer: View {
     @State private var currentTime: Double = 0
     @State private var duration: Double = 0
     @State private var seeking = false
+    @State private var videoSize: CGSize = .zero
     @StateObject private var coordinator = KSVideoPlayer.Coordinator()
 
     init(qualities: [PHQuality]) {
@@ -34,55 +35,82 @@ struct PHPlayer: View {
     }
 
     private func stage(fullscreen: Bool) -> some View {
-        ZStack {
-            Color.black
-            if let quality = selected {
-                KSVideoPlayer(coordinator: coordinator, url: quality.url, options: playbackOptions)
-            } else {
-                ContentUnavailableView("没有可播放的画质", systemImage: "play.slash")
+        GeometryReader { proxy in
+            ZStack {
+                Color.black
+                if let quality = selected {
+                    KSVideoPlayer(coordinator: coordinator, url: quality.url, options: playbackOptions)
+                        .frame(width: fittedSize(in: proxy.size).width, height: fittedSize(in: proxy.size).height)
+                        .onAppear { applyAspectFit() }
+                } else {
+                    ContentUnavailableView("没有可播放的画质", systemImage: "play.slash")
+                }
+                controls(fullscreen: fullscreen, safe: proxy.safeAreaInsets)
+                if fullscreen { progressBar(safe: proxy.safeAreaInsets) }
+                if showQualities { qualityPanel(fullscreen: fullscreen, safe: proxy.safeAreaInsets) }
             }
-            controls(fullscreen: fullscreen)
-            if fullscreen { progressBar }
-            if showQualities { qualityPanel }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
-        .aspectRatio(fullscreen ? nil : 16.0 / 9.0, contentMode: fullscreen ? .fill : .fit)
-        .frame(maxWidth: fullscreen ? .infinity : nil, maxHeight: fullscreen ? .infinity : nil)
+        .aspectRatio(fullscreen ? nil : 16.0 / 9.0, contentMode: .fit)
+        .frame(maxWidth: .infinity, maxHeight: fullscreen ? .infinity : nil)
         .background(Color.black)
         .clipped()
     }
 
-    private func controls(fullscreen: Bool) -> some View {
+    /// Letterbox inside the stage. Never stretch a portrait frame to fill landscape.
+    private func fittedSize(in container: CGSize) -> CGSize {
+        let source = videoSize.width > 1 && videoSize.height > 1 ? videoSize : CGSize(width: 16, height: 9)
+        let scale = min(container.width / source.width, container.height / source.height)
+        guard scale.isFinite, scale > 0 else { return container }
+        return CGSize(width: source.width * scale, height: source.height * scale)
+    }
+
+    private func controls(fullscreen: Bool, safe: EdgeInsets) -> some View {
         VStack {
-            HStack(spacing: 4) {
+            HStack(spacing: 8) {
                 if fullscreen {
                     controlButton("chevron.left", label: "退出横屏") {
                         showQualities = false
                         self.fullscreen = false
                     }
                 }
-                Spacer()
-                Button {
-                    showQualities.toggle()
-                } label: {
-                    Text(selected?.label ?? "画质")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(.black.opacity(0.55), in: Capsule())
-                }
+                Spacer(minLength: 8)
+                qualityButton
                 controlButton(fullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right", label: fullscreen ? "退出横屏" : "横屏播放") {
                     showQualities = false
                     self.fullscreen.toggle()
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.top, fullscreen ? 16 : 6)
+            .padding(.leading, max(safe.leading, fullscreen ? 20 : 10))
+            .padding(.trailing, max(safe.trailing, fullscreen ? 20 : 10))
+            .padding(.top, max(safe.top, fullscreen ? 12 : 6))
             Spacer()
         }
         .foregroundStyle(.white)
     }
 
-    private var progressBar: some View {
+    private var qualityButton: some View {
+        Button {
+            showQualities.toggle()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 13, weight: .bold))
+                Text(selected?.label ?? "画质")
+                    .font(.system(size: 15, weight: .bold))
+                Image(systemName: showQualities ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(.black.opacity(0.72), in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("画质")
+    }
+
+    private func progressBar(safe: EdgeInsets) -> some View {
         VStack {
             Spacer()
             HStack(spacing: 10) {
@@ -102,21 +130,21 @@ struct PHPlayer: View {
             }
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
+            .foregroundStyle(.white)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background(.black.opacity(0.35))
+            .padding(.bottom, max(safe.bottom, 8))
         }
         .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
             guard fullscreen, !seeking else { return }
-            currentTime = coordinator.playerLayer?.player.currentPlaybackTime ?? currentTime
-            let total = coordinator.playerLayer?.player.duration ?? 0
-            if total > 0 { duration = total }
+            refreshPlayback()
         }
     }
 
-    private var qualityPanel: some View {
+    private func qualityPanel(fullscreen: Bool, safe: EdgeInsets) -> some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.opacity(0.01)
+            Color.black.opacity(0.28)
                 .contentShape(Rectangle())
                 .onTapGesture { showQualities = false }
             VStack(alignment: .trailing, spacing: 8) {
@@ -125,17 +153,23 @@ struct PHPlayer: View {
                         switchQuality(quality)
                         showQualities = false
                     } label: {
-                        Text(quality.id == selectedID ? "\(quality.label) ✓" : quality.label)
-                            .font(.system(size: 15, weight: .semibold))
-                            .frame(minWidth: 92)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(.black.opacity(0.78), in: Capsule())
+                        HStack {
+                            Text(quality.label)
+                            if quality.id == selectedID {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(minWidth: 132, alignment: .leading)
+                        .padding(.vertical, 11)
+                        .padding(.horizontal, 16)
+                        .background(quality.id == selectedID ? Color.orange : Color.black.opacity(0.9), in: Capsule())
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.top, 62)
-            .padding(.trailing, 58)
+            .padding(.top, max(safe.top, fullscreen ? 12 : 6) + 52)
+            .padding(.trailing, max(safe.trailing, 16) + 56)
         }
         .foregroundStyle(.white)
     }
@@ -144,9 +178,11 @@ struct PHPlayer: View {
         Button(action: action) {
             Image(systemName: system)
                 .font(.system(size: 17, weight: .semibold))
-                .frame(width: 44, height: 44)
-                .background(.black.opacity(0.35), in: Circle())
+                .frame(width: 40, height: 40)
+                .background(.black.opacity(0.72), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.28), lineWidth: 1))
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 
@@ -164,14 +200,33 @@ struct PHPlayer: View {
         return options
     }
 
+    private func refreshPlayback() {
+        currentTime = coordinator.playerLayer?.player.currentPlaybackTime ?? currentTime
+        let total = coordinator.playerLayer?.player.duration ?? 0
+        if total > 0 { duration = total }
+        let size = coordinator.playerLayer?.player.naturalSize ?? .zero
+        if size.width > 1, size.height > 1, size != videoSize {
+            videoSize = size
+        }
+        applyAspectFit()
+    }
+
+    private func applyAspectFit() {
+        coordinator.isScaleAspectFill = false
+        coordinator.playerLayer?.player.contentMode = .scaleAspectFit
+    }
+
     private func switchQuality(_ quality: PHQuality) {
         let time = coordinator.playerLayer?.player.currentPlaybackTime ?? currentTime
         selectedID = quality.id
+        videoSize = .zero
         coordinator.playerLayer?.set(url: quality.url, options: playbackOptions)
+        applyAspectFit()
         guard time > 1 else { return }
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
             coordinator.playerLayer?.seek(time: time, autoPlay: true, completion: { _ in })
+            applyAspectFit()
         }
     }
 
