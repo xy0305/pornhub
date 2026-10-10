@@ -4,9 +4,7 @@ struct PHHomeView: View {
     @EnvironmentObject private var library: PHLibrary
     @StateObject private var model = PHHomeModel()
     @Binding var path: NavigationPath
-    @Binding var showMenu: Bool
-    @Binding var showSearch: Bool
-    @Binding var showAccount: Bool
+    let present: (PHHomeSheet) -> Void
 
     var body: some View {
         ScrollView {
@@ -53,26 +51,30 @@ struct PHHomeView: View {
         PHGlassGroup {
             VStack(spacing: 10) {
                 HStack(spacing: 10) {
-                    iconButton("line.3.horizontal", color: PHTheme.orange) { showMenu = true }
+                    iconButton("line.3.horizontal", color: PHTheme.orange) { present(.menu) }
                         .accessibilityLabel("浏览菜单与取向")
+                        .accessibilityIdentifier("home.menu")
                     Spacer(minLength: 0)
                     PHLogo().accessibilityLabel("Pornhub")
                     Spacer(minLength: 0)
-                    iconButton("person.crop.circle", color: .white) { showAccount = true }
+                    iconButton("person.crop.circle", color: .white) { present(.account) }
                         .accessibilityLabel("账号")
+                        .accessibilityIdentifier("home.account")
                 }
                 HStack(spacing: 10) {
-                    Button { showSearch = true } label: {
+                    Button { present(.search) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: "magnifyingglass").foregroundStyle(PHTheme.orange)
                             Text("搜索视频、明星、分类").font(.subheadline).foregroundStyle(PHTheme.secondary)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 16)
-                        .frame(minHeight: PHLayout.controlHeight)
+                        .frame(maxWidth: .infinity, minHeight: PHLayout.controlHeight)
+                        .contentShape(Capsule())
                         .phGlass(radius: 24, interactive: true)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.search")
                     iconButton("heart", color: .white) { path.append(PHRoute.subscriptions) }
                         .accessibilityLabel("订阅")
                 }
@@ -89,7 +91,7 @@ struct PHHomeView: View {
             Circle()
                 .fill(Color.blue)
                 .frame(width: 16, height: 16)
-                .overlay(Image(systemName: "globe").font(.system(size: 9, weight: .bold)).foregroundStyle(.white))
+                .overlay(Image(systemName: "globe").font(.system(size: 9, weight: .bold)).foregroundStyle(.white).allowsHitTesting(false))
             Spacer()
         }
         .padding(.horizontal, PHLayout.gutter)
@@ -102,6 +104,7 @@ struct PHHomeView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(color)
                 .frame(width: 44, height: 44)
+                .contentShape(Circle())
                 .phGlass(radius: 22, interactive: true)
         }
         .buttonStyle(.plain)
@@ -136,6 +139,9 @@ final class PHHomeModel: ObservableObject {
     private let client = PHClient()
 
     func loadIfNeeded() async {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PHInteractionFixtures") { return }
+        #endif
         guard videos.isEmpty, !loading else { return }
         await reload()
     }
@@ -191,6 +197,8 @@ struct PHMenuView: View {
                             onSelect(.listing(title: item.title, path: item.path == "/" ? "/video" : item.path))
                         } label: {
                             Label(item.title, systemImage: item.systemImage)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
                         .foregroundStyle(item == orientation ? PHTheme.orange : .white)
                     }
@@ -203,6 +211,8 @@ struct PHMenuView: View {
                             onSelect(route(for: item))
                         } label: {
                             Label(item.title, systemImage: item.icon)
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .contentShape(Rectangle())
                         }
                     }
                 }

@@ -27,12 +27,12 @@ private struct PHGlassSurface: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         if reduceTransparency {
             content.background(PHTheme.card, in: shape)
-                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1))
+                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1).allowsHitTesting(false))
         } else if #available(iOS 26.0, *) {
             content.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
         } else {
             content.background(.regularMaterial, in: shape)
-                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1))
+                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1).allowsHitTesting(false))
         }
     }
 }
@@ -81,7 +81,7 @@ extension View {
     func phCard(radius: CGFloat = PHLayout.radius) -> some View {
         background(PHTheme.elevated, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(PHTheme.hairline, lineWidth: 1))
+                .stroke(PHTheme.hairline, lineWidth: 1).allowsHitTesting(false))
     }
 }
 

@@ -17,7 +17,11 @@ checks = {
  'group/action accessibility': t.count('!reduceTransparency') == 2,
  'opaque content': 'background(PHTheme.elevated' in t,
  'safe-area header': '.safeAreaInset(edge: .top, spacing: 0)' in h,
- 'search button': 'Button { showSearch = true } label:' in h,
+ 'search button': 'Button { present(.search) } label:' in h,
+ 'full search target': '.frame(maxWidth: .infinity, minHeight: PHLayout.controlHeight)' in h and '.contentShape(Capsule())' in h,
+ 'icon target': '.contentShape(Circle())' in h,
+ 'decoration noninteractive': t.count('.allowsHitTesting(false)') == 3,
+ 'single sheet owner': read('PornhubApp.swift').count('.sheet(') == 1 and '.sheet(item: $activeSheet, onDismiss: finishSheetNavigation)' in read('PornhubApp.swift'),
  'subscription label': '.accessibilityLabel("订阅")' in h,
  'no fake ellipsis': 'ellipsis' not in read('PHComponents.swift'),
  'adaptive grids': p.count('GridItem(.adaptive(') == 2,
@@ -28,8 +32,8 @@ checks = {
  'dark appearance': '.preferredColorScheme(.dark)' in read('PornhubApp.swift'),
  'no web renderer': not any(re.search(r'\b(WKWebView|UIWebView|SFSafariViewController|import WebKit)\b', x.read_text()) for x in (r/'Pornhub').glob('*.swift')),
 }
-for n,d in {'PHPlayer.swift':'c2da129f444e937ba2ce41067edce69a09e848c6590d94813aeb3d8b2b6fa42e','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
- checks['build5 unchanged '+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
+for n,d in {'PHPlayer.swift':'585063a1442ecd5b914d9e49b4177bc1057548af5e7baec2442aaaf9a1db095c','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
+ checks[('build7 audited player ' if n == 'PHPlayer.swift' else 'build5 unchanged seek ')+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
 for n,ok in checks.items(): print(('PASS: ' if ok else 'FAIL: ')+n)
 assert all(checks.values())
 print(f'{len(checks)} static UI contracts passed; device acceptance remains required.')

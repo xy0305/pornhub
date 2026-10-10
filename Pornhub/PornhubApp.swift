@@ -8,7 +8,20 @@ struct PornhubApp: App {
 
     var body: some Scene {
         WindowGroup {
-            PHRootView()
+            Group {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-PHQualityFixture") {
+                    PHPlayer(qualities: [
+                        PHQuality(label: "360p", height: 360, url: URL(string: "http://127.0.0.1:9/360.mp4")!, isDefault: true),
+                        PHQuality(label: "720p", height: 720, url: URL(string: "http://127.0.0.1:9/720.mp4")!, isDefault: false)
+                    ])
+                } else {
+                    PHRootView()
+                }
+                #else
+                PHRootView()
+                #endif
+            }
                 .environmentObject(library)
                 .preferredColorScheme(.dark)
         }
@@ -22,42 +35,55 @@ final class PHAppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+enum PHHomeSheet: String, Identifiable {
+    case menu, search, account
+    var id: String { rawValue }
+}
+
 struct PHRootView: View {
     @EnvironmentObject private var library: PHLibrary
     @State private var path = NavigationPath()
-    @State private var showMenu = false
-    @State private var showSearch = false
-    @State private var showAccount = false
+    @State private var activeSheet: PHHomeSheet?
+    @State private var pendingRoute: PHRoute?
     @State private var orientation: PHOrientation = .straight
 
     var body: some View {
         NavigationStack(path: $path) {
-            PHHomeView(path: $path, showMenu: $showMenu, showSearch: $showSearch, showAccount: $showAccount)
+            PHHomeView(path: $path) { activeSheet = $0 }
                 .navigationDestination(for: PHRoute.self) { route in
                     destination(route)
                 }
         }
         .tint(PHTheme.orange)
-        .sheet(isPresented: $showMenu) {
-            PHMenuView(orientation: $orientation) { route in
-                showMenu = false
-                path.append(route)
-            } close: {
-                showMenu = false
+        .sheet(item: $activeSheet, onDismiss: finishSheetNavigation) { sheet in
+            switch sheet {
+            case .menu:
+                PHMenuView(orientation: $orientation, onSelect: openAfterSheet) {
+                    activeSheet = nil
+                }
+                .presentationDetents([.large])
+            case .search:
+                PHSearchSheet { query in
+                    openAfterSheet(.search(query))
+                } onOpen: { route in
+                    openAfterSheet(route)
+                }
+            case .account:
+                PHAccountSheet().environmentObject(library)
             }
-            .presentationDetents([.large])
         }
-        .sheet(isPresented: $showSearch) {
-            PHSearchSheet { query in
-                path.append(PHRoute.search(query))
-            } onOpen: { route in
-                path.append(route)
-            }
-        }
-        .sheet(isPresented: $showAccount) {
-            PHAccountSheet()
-                .environmentObject(library)
-        }
+    }
+
+    // Navigation waits for the sheet's dismissal; do not push behind a modal.
+    private func openAfterSheet(_ route: PHRoute) {
+        pendingRoute = route
+        activeSheet = nil
+    }
+
+    private func finishSheetNavigation() {
+        guard let route = pendingRoute else { return }
+        pendingRoute = nil
+        path.append(route)
     }
 
     @ViewBuilder

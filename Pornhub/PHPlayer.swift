@@ -374,9 +374,56 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         progress.isEnabled = false
     }
 
+    override func set(resource: KSPlayerResource, definitionIndex: Int = 0, isSetUrl: Bool = true) {
+        guard !resource.definitions.isEmpty else { return }
+        super.set(resource: resource, definitionIndex: max(0, min(definitionIndex, resource.definitions.count - 1)), isSetUrl: isSetUrl)
+        refreshQualityMenu()
+    }
+
+    private func refreshQualityMenu() {
+        let button = toolBar.definitionButton
+        guard let resource, resource.definitions.indices.contains(currentDefinition) else {
+            button.menu = nil
+            button.isEnabled = false
+            return
+        }
+        // KSPlayer 2.3.4 builds this only at readyToPlay. Build immediately too:
+        // an unavailable source must not prevent choosing another source.
+        let actions = resource.definitions.enumerated().map { index, definition in
+            UIAction(title: definition.definition, state: index == currentDefinition ? .on : .off) { [weak self, weak resource] _ in
+                guard let self, let resource, self.resource === resource else { return }
+                self.change(definitionIndex: index)
+            }
+        }
+        button.menu = UIMenu(title: "画质", options: .singleSelection, children: actions)
+        button.showsMenuAsPrimaryAction = true
+        button.isEnabled = actions.count > 1
+        button.isHidden = false
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PHInteractionFixtures") {
+            button.accessibilityValue = playerLayer?.url.lastPathComponent
+        }
+        #endif
+        button.setTitle("画质 · " + resource.definitions[currentDefinition].definition, for: .normal)
+        button.accessibilityIdentifier = "player.quality"
+        // The root-level button stays above the full-size controller overlay,
+        // including after reparenting / layer replacement and mask animations.
+        bringSubviewToFront(button)
+    }
+
     override func change(definitionIndex: Int) {
+        guard let resource, resource.definitions.indices.contains(definitionIndex),
+              definitionIndex != currentDefinition else { return }
+        let resume = toolBar.playButton.isSelected
+        let time = playerLayer?.player.currentPlaybackTime ?? 0
         progressCancelled()
-        super.change(definitionIndex: definitionIndex)
+        // IOSVideoPlayerView.change awaits thumbnailImageAtCurrentTime BEFORE
+        // switching URL. A stuck decoder/network can strand that Task forever.
+        // Use the public set(resource:) path (same view/owner), no thumbnail gate.
+        set(resource: resource, definitionIndex: definitionIndex)
+        playerLayer?.player.contentMode = .scaleAspectFit
+        playerLayer?.seek(time: time.isFinite ? max(0, time) : 0, autoPlay: resume) { _ in }
+        if !resume { pause() }
         setFullscreenControls(landscapeButton.isSelected)
     }
 
@@ -399,10 +446,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         toolBar.srtButton.isHidden = true
         toolBar.pipButton.isHidden = true
         isMaskShow = true
-        if let resource, resource.definitions.indices.contains(currentDefinition) {
-            toolBar.definitionButton.isHidden = false
-            toolBar.definitionButton.setTitle("画质 · " + resource.definitions[currentDefinition].definition, for: .normal)
-        }
+        refreshQualityMenu()
     }
 
     override func player(layer: KSPlayerLayer, state: KSPlayerState) {

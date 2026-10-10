@@ -77,7 +77,8 @@ struct PHChipRow: View {
                         .padding(.horizontal, 16)
                         .frame(minHeight: PHLayout.controlHeight)
                         .background(Color(white: 0.16), in: Capsule())
-                        .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1).allowsHitTesting(false))
+                        .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                 }

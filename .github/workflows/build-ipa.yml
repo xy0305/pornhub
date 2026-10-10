@@ -54,6 +54,26 @@ jobs:
             -o /tmp/pornhub-parser-tests
           PH_FIXTURES="$PWD/Tests/Fixtures" /tmp/pornhub-parser-tests
 
+      - name: Run native touch and menu interaction regressions (Simulator)
+        run: |
+          set -euo pipefail
+          gem install xcodeproj --user-install --no-document
+          ruby Tests/PlayerChecks/prepare.rb
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for k,v in d["devices"].items() if "iOS" in k for x in v if "iPhone" in x["name"]))')
+          xcodebuild test -project Pornhub.xcodeproj -scheme Interactions \
+            -configuration Debug -destination "platform=iOS Simulator,id=$DEVICE" \
+            -derivedDataPath "$PWD/SimulatorDerivedData" \
+            -resultBundlePath "$PWD/InteractionResults.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Upload interaction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: InteractionResults
+          path: InteractionResults.xcresult
+          if-no-files-found: ignore
+
       - name: Build unsigned (iphoneos)
         run: |
           set -euo pipefail

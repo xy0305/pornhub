@@ -25,7 +25,7 @@ checks = {
  'explicit teardown': 'controller.dispose()' in p and 'player.playerLayer = nil' in p,
  'orientation delegate': '@UIApplicationDelegateAdaptor(PHAppDelegate.self)' in a and 'supportedInterfaceOrientationsFor' in a,
  'controller status bar': plistlib.loads((r/'Pornhub/Info.plist').read_bytes())['UIViewControllerBasedStatusBarAppearance'] is True,
- 'build 6': b.count('CURRENT_PROJECT_VERSION = 6;') == 2,
+ 'build 7': b.count('CURRENT_PROJECT_VERSION = 7;') == 2,
  '44pt progress input': 'progress.heightAnchor.constraint(equalToConstant: 44)' in p,
  'single tracking path': 'class PHProgressSlider: UISlider' in p and 'override func beginTracking' in p and 'override func continueTracking' in p,
  'stock slider input disabled': 'toolBar.timeSlider.isUserInteractionEnabled = false' in p and 'toolBar.timeSlider.isHidden = true' in p,

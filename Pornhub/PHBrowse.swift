@@ -5,6 +5,7 @@ struct PHSearchSheet: View {
     @State private var searches: [PHSuggestion] = []
     @State private var performers: [PHSuggestion] = []
     @State private var failed = false
+    @FocusState private var searchFocused: Bool
     let onSearch: (String) -> Void
     let onOpen: (PHRoute) -> Void
     @Environment(\.dismiss) private var dismiss
@@ -18,6 +19,8 @@ struct PHSearchSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .submitLabel(.search)
+                        .focused($searchFocused)
+                        .accessibilityIdentifier("search.input")
                         .padding(14)
                         .phGlass(radius: 24)
                         .onSubmit { submit() }
@@ -74,6 +77,7 @@ struct PHSearchSheet: View {
                     Button("取消") { dismiss() }
                 }
             }
+            .onAppear { searchFocused = true }
             .task { await load() }
         }
         .preferredColorScheme(.dark)
