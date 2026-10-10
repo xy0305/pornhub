@@ -143,15 +143,45 @@ struct PHProfileView: View {
                         .frame(width: 84, height: 84)
                         .clipShape(Circle())
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(model.profile?.name.isEmpty == false ? model.profile!.name : name)
-                            .font(.system(size: 22, weight: .bold))
-                        if let subscribers = model.profile?.subscribers, !subscribers.isEmpty {
-                            Text("\(subscribers) 订阅者").foregroundStyle(PHTheme.secondary)
+                        HStack(spacing: 6) {
+                            Text(model.profile?.name.isEmpty == false ? model.profile!.name : name)
+                                .font(.system(size: 22, weight: .bold))
+                            if model.profile?.videos.first?.verified == true || model.subscribed {
+                                Image(systemName: "checkmark.seal.fill")
+                                    .foregroundStyle(Color(red: 0.25, green: 0.55, blue: 1))
+                            }
+                        }
+                        HStack(spacing: 14) {
+                            if let rank = model.profile?.rank, !rank.isEmpty {
+                                stat(rank, "排名")
+                            }
+                            if let views = model.profile?.views, !views.isEmpty {
+                                stat(views, "次观看")
+                            }
+                            if let subscribers = model.profile?.subscribers, !subscribers.isEmpty {
+                                stat(subscribers, "订阅者")
+                            }
                         }
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 16)
+                Button {
+                    Task { await model.toggleSubscription(library) }
+                } label: {
+                    Label(model.subscribed ? "已订阅" : "订阅", systemImage: model.subscribed ? "checkmark" : "person.badge.plus")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 46)
+                        .background(model.subscribed ? PHTheme.card : PHTheme.orange, in: Capsule())
+                        .foregroundStyle(model.subscribed ? .white : .black)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.subscribing)
+                .padding(.horizontal, 16)
+                if let message = model.message {
+                    Text(message).font(.footnote).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
+                }
                 if let about = model.profile?.about, !about.isEmpty {
                     Text(about).font(.system(size: 14)).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
                 }
@@ -174,7 +204,19 @@ struct PHProfileView: View {
         .background(PHTheme.background)
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await model.load() }
+        .task {
+            await model.load()
+            if let profile = model.profile {
+                model.subscribed = library.isSubscribed(profile) || profile.subscribed
+            }
+        }
+    }
+
+    private func stat(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 1) {
+            Text(value).font(.system(size: 14, weight: .bold))
+            Text(label).font(.system(size: 11)).foregroundStyle(PHTheme.secondary)
+        }
     }
 }
 
@@ -182,14 +224,38 @@ struct PHProfileView: View {
 final class PHProfileModel: ObservableObject {
     @Published var profile: PHProfile?
     @Published var loading = false
+    @Published var subscribing = false
+    @Published var subscribed = false
     @Published var error: String?
+    @Published var message: String?
     private let href: String
     private let client = PHClient()
     init(href: String) { self.href = href }
+
     func load() async {
         guard profile == nil, !loading else { return }
         loading = true
-        do { profile = try await client.profile(href: href) } catch { self.error = error.localizedDescription }
+        do {
+            profile = try await client.profile(href: href)
+            subscribed = profile?.subscribed ?? false
+        } catch {
+            self.error = error.localizedDescription
+        }
         loading = false
+    }
+
+    func toggleSubscription(_ library: PHLibrary) async {
+        guard let profile, !subscribing else { return }
+        subscribing = true
+        message = nil
+        do {
+            let now = try await client.setSubscription(profile: profile, subscribe: !subscribed)
+            subscribed = now
+            library.syncSubscription(profile, subscribed: now)
+            message = now ? "已同步到当前账号" : "已从当前账号取消订阅"
+        } catch {
+            message = error.localizedDescription
+        }
+        subscribing = false
     }
 }

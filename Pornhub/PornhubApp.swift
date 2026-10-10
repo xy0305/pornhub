@@ -41,6 +41,8 @@ struct PHRootView: View {
         .sheet(isPresented: $showSearch) {
             PHSearchSheet { query in
                 path.append(PHRoute.search(query))
+            } onOpen: { route in
+                path.append(route)
             }
         }
         .sheet(isPresented: $showAccount) {
@@ -86,6 +88,8 @@ struct PHRootView: View {
             PHSavedList(title: "已点赞", videos: library.liked, path: $path)
         case .history:
             PHSavedList(title: "观看记录", videos: library.history, path: $path)
+        case .subscriptions:
+            PHSubscriptionList(path: $path)
         }
     }
 }

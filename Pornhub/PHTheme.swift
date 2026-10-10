@@ -41,15 +41,18 @@ struct PHRemoteImage: View {
 final class PHLibrary: ObservableObject {
     @Published var liked: [PHVideo] = []
     @Published var history: [PHVideo] = []
+    @Published var subscriptions: [PHSubscription] = []
     @Published var account: PHAccount?
 
     private let likedKey = "ph.liked"
     private let historyKey = "ph.history"
     private let accountKey = "ph.account"
+    private let subscriptionKey = "ph.subscriptions"
 
     init() {
         liked = Self.videos(likedKey)
         history = Self.videos(historyKey)
+        subscriptions = Self.subscriptions(subscriptionKey)
         account = Self.account(accountKey)
     }
 
@@ -81,9 +84,21 @@ final class PHLibrary: ObservableObject {
         UserDefaults.standard.removeObject(forKey: accountKey)
     }
 
-    private static func videos(_ key: String) -> [PHVideo] {
+    func isSubscribed(_ profile: PHProfile) -> Bool {
+        subscriptions.contains { $0.userID == profile.userID && !profile.userID.isEmpty }
+    }
+
+    func syncSubscription(_ profile: PHProfile, subscribed: Bool) {
+        subscriptions.removeAll { $0.userID == profile.userID || ($0.href == profile.href && !profile.href.isEmpty) }
+        if subscribed {
+            subscriptions.insert(PHSubscription(userID: profile.userID, name: profile.name, href: profile.href, avatar: profile.avatar), at: 0)
+        }
+        Self.save(subscriptions, subscriptionKey)
+    }
+
+    private static func subscriptions(_ key: String) -> [PHSubscription] {
         guard let data = UserDefaults.standard.data(forKey: key),
-              let value = try? JSONDecoder().decode([PHVideo].self, from: data) else { return [] }
+              let value = try? JSONDecoder().decode([PHSubscription].self, from: data) else { return [] }
         return value
     }
 

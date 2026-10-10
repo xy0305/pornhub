@@ -2,29 +2,70 @@ import SwiftUI
 
 struct PHSearchSheet: View {
     @State private var query = ""
+    @State private var searches: [PHSuggestion] = []
+    @State private var performers: [PHSuggestion] = []
+    @State private var failed = false
     let onSearch: (String) -> Void
+    let onOpen: (PHRoute) -> Void
     @Environment(\.dismiss) private var dismiss
+    private let client = PHClient()
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                TextField("搜索视频、明星、分类", text: $query)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(14)
-                    .background(PHTheme.card, in: RoundedRectangle(cornerRadius: 12))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                Button("搜索") {
-                    let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty else { return }
-                    onSearch(text)
-                    dismiss()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    TextField("搜索视频、明星、分类", text: $query)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .padding(14)
+                        .background(PHTheme.card, in: RoundedRectangle(cornerRadius: 12))
+                        .onSubmit { submit() }
+                    Button("搜索") { submit() }
+                        .buttonStyle(.borderedProminent)
+                        .tint(PHTheme.orange)
+                        .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    if !searches.isEmpty {
+                        Text("热门搜索")
+                            .font(.system(size: 22, weight: .bold))
+                        ForEach(searches) { item in
+                            Button(item.title) {
+                                query = item.title
+                                submit()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 17))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    if !performers.isEmpty {
+                        Text("热门色情明星和模特")
+                            .font(.system(size: 22, weight: .bold))
+                        ForEach(performers) { item in
+                            Button {
+                                onOpen(.profile(href: item.href, name: item.title))
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 14) {
+                                    PHRemoteImage(url: item.avatar, ratio: 1)
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(Circle())
+                                    Text(item.title)
+                                        .font(.system(size: 18, weight: .semibold))
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    if failed && searches.isEmpty {
+                        Text("热门搜索暂时没有加载出来，仍可以直接输入搜索。")
+                            .font(.footnote)
+                            .foregroundStyle(PHTheme.secondary)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(PHTheme.orange)
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                Spacer()
+                .padding(16)
             }
             .background(PHTheme.background)
             .navigationTitle("搜索")
@@ -33,8 +74,27 @@ struct PHSearchSheet: View {
                     Button("取消") { dismiss() }
                 }
             }
+            .task { await load() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func submit() {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        onSearch(text)
+        dismiss()
+    }
+
+    private func load() async {
+        guard searches.isEmpty, performers.isEmpty else { return }
+        do {
+            let result = try await client.suggestions()
+            searches = result.searches
+            performers = result.performers
+        } catch {
+            failed = true
+        }
     }
 }
 

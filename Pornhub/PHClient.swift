@@ -82,6 +82,10 @@ actor PHClient {
         PHParser.performers(in: try await text(url: url(path)))
     }
 
+    func suggestions() async throws -> (searches: [PHSuggestion], performers: [PHSuggestion]) {
+        PHParser.suggestions(in: try await text(url: Self.origin))
+    }
+
     func profile(href: String) async throws -> PHProfile {
         PHParser.profile(in: try await text(url: PHParser.absolute(href).asURL ?? Self.origin), href: href)
     }
@@ -135,12 +139,6 @@ actor PHClient {
         let login = try await text(url: url("/login"))
         let token = PHParser.loginToken(in: login)
         let redirect = PHParser.loginRedirect(in: login)
-        var request = URLRequest(url: url("/front/authenticate"))
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded; charset=UTF-8", forHTTPHeaderField: "Content-Type")
-        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
-        request.setValue(Self.origin.absoluteString + "/login", forHTTPHeaderField: "Referer")
-        request.setValue(Self.origin.absoluteString, forHTTPHeaderField: "Origin")
         let body = [
             "redirect": redirect,
             "user_id": "",
@@ -150,28 +148,74 @@ actor PHClient {
             "password": password,
             "remember_me": "on"
         ]
-        request.httpBody = form(body).data(using: .utf8)
-        let (data, response) = try await session.data(for: request)
-        let text = String(data: data, encoding: .utf8) ?? ""
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status >= 400 || text.localizedCaseInsensitiveContains("incorrect") || text.contains("登录失败") {
-            throw PHError.login(message(from: text) ?? "邮箱或密码不正确")
+        return try await submitLogin(body, provider: "email", fallbackName: email.split(separator: "@").first.map(String.init) ?? email)
+    }
+
+    func authenticateGoogle(accessToken: String) async throws -> PHAccount {
+        let token = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else { throw PHError.login("没有收到 Google 凭证") }
+        let login = try await text(url: url("/login"))
+        let body = [
+            "redirect": PHParser.loginRedirect(in: login),
+            "user_id": "",
+            "token": PHParser.loginToken(in: login),
+            "from": "pc_login_modal",
+            "email": "",
+            "password": "",
+            "sso_token": token,
+            "remember_me": "on"
+        ]
+        return try await submitLogin(body, provider: "google", fallbackName: "Google")
+    }
+
+    func setSubscription(profile: PHProfile, subscribe: Bool) async throws -> Bool {
+        let template = subscribe ? profile.subscribeURL : profile.unsubscribeURL
+        guard !template.isEmpty, !profile.userID.isEmpty else {
+            throw PHError.login("这个资料页没有订阅接口")
         }
-        let account = PHAccount(email: email, displayName: email.split(separator: "@").first.map(String.init) ?? email)
-        let accepted = text.contains("\"success\":true") || text.contains("\"success\":1") || text.localizedCaseInsensitiveContains("logged")
-        if !accepted {
-            if text.localizedCaseInsensitiveContains("captcha") || text.localizedCaseInsensitiveContains("recaptcha") {
-                throw PHError.login("官网要求验证码，这次没有登录成功")
-            }
-            throw PHError.login(message(from: text) ?? "登录没有被官网接受")
+        let target = url(template, [URLQueryItem(name: "id", value: profile.userID)])
+        let payload = try await data(url: target, referer: PHParser.absolute(profile.href), ajax: true)
+        let object = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any]
+        let success = (object?["success"] as? String)?.uppercased() == "PASS" || (object?["success"] as? Bool) == true
+        guard success else {
+            let message = (object?["message"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "订阅没有被官网接受"
+            throw PHError.login(message)
         }
-        return account
+        return subscribe
     }
 
     var hasSessionCookie: Bool {
         let cookies = jar.cookies(for: Self.origin) ?? []
         return cookies.contains { ["il","ss","sessid","ua"].contains($0.name) == false && ($0.name.contains("login") || $0.name == "gateway_security_key" || $0.name.contains("auth")) }
             || cookies.contains { $0.name == "il" && !$0.value.isEmpty }
+    }
+
+    private func submitLogin(_ fields: [String: String], provider: String, fallbackName: String) async throws -> PHAccount {
+        var request = URLRequest(url: url("/front/authenticate"))
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(Self.origin.absoluteString + "/login", forHTTPHeaderField: "Referer")
+        request.setValue(Self.origin.absoluteString, forHTTPHeaderField: "Origin")
+        request.httpBody = form(fields).data(using: .utf8)
+        let (data, response) = try await session.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200..<400).contains(status) else { throw PHError.login("登录请求失败 \(status)") }
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        let redirect = (object?["redirect"] as? String) ?? (object?["redirectUrl"] as? String) ?? ""
+        let message = (object?["message"] as? String) ?? ""
+        guard !redirect.isEmpty else {
+            if message.localizedCaseInsensitiveContains("captcha") || message.localizedCaseInsensitiveContains("recaptcha") {
+                throw PHError.login("官网要求验证码，这次没有登录成功")
+            }
+            throw PHError.login(message.isEmpty ? "登录没有被官网接受" : message)
+        }
+        let email = (object?["email"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? fields["email"].flatMap { $0.isEmpty ? nil : $0 } ?? ""
+        let name = (object?["username"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            ?? email.split(separator: "@").first.map(String.init)
+            ?? fallbackName
+        return PHAccount(email: email.isEmpty ? name : email, displayName: name, provider: provider)
     }
 
     private func get(path: String, items: [URLQueryItem]) async throws -> PHPage {

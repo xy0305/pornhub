@@ -296,6 +296,7 @@ struct PHAccountSheet: View {
     @EnvironmentObject private var library: PHLibrary
     @State private var email = ""
     @State private var password = ""
+    @State private var googleToken = ""
     @State private var busy = false
     @State private var message: String?
     private let client = PHClient()
@@ -346,6 +347,54 @@ struct PHAccountSheet: View {
             message = error.localizedDescription
         }
         busy = false
+    }
+
+    private func google() async {
+        busy = true
+        message = nil
+        do {
+            let account = try await client.authenticateGoogle(accessToken: googleToken)
+            library.signIn(account)
+            googleToken = ""
+        } catch {
+            message = error.localizedDescription
+        }
+        busy = false
+    }
+}
+
+struct PHSubscriptionList: View {
+    @EnvironmentObject private var library: PHLibrary
+    @Binding var path: NavigationPath
+
+    var body: some View {
+        ScrollView {
+            if library.subscriptions.isEmpty {
+                ContentUnavailableView("还没有订阅", systemImage: "person.badge.plus", description: Text("在作者页订阅后会同步到这里"))
+                    .padding(.top, 80)
+            }
+            LazyVStack(spacing: 12) {
+                ForEach(library.subscriptions) { item in
+                    Button {
+                        path.append(PHRoute.profile(href: item.href, name: item.name))
+                    } label: {
+                        HStack(spacing: 12) {
+                            PHRemoteImage(url: item.avatar, ratio: 1)
+                                .frame(width: 54, height: 54)
+                                .clipShape(Circle())
+                            Text(item.name).font(.system(size: 17, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(PHTheme.muted)
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 12)
+        }
+        .background(PHTheme.background)
+        .navigationTitle("订阅")
     }
 }
 

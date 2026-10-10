@@ -62,7 +62,7 @@ struct PHHomeView: View {
                         .font(.system(size: 8, weight: .bold))
                         .offset(y: 8)
                 }
-                .onTapGesture { path.append(PHRoute.liked) }
+                .onTapGesture { path.append(PHRoute.subscriptions) }
             Spacer()
             PHLogo()
             Spacer()

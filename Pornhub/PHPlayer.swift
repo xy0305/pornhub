@@ -45,8 +45,10 @@ struct PHPlayer: View {
             if fullscreen { progressBar }
             if showQualities { qualityPanel }
         }
-        .aspectRatio(fullscreen ? nil : 16.0 / 9.0, contentMode: .fit)
+        .aspectRatio(fullscreen ? nil : 16.0 / 9.0, contentMode: fullscreen ? .fill : .fit)
+        .frame(maxWidth: fullscreen ? .infinity : nil, maxHeight: fullscreen ? .infinity : nil)
         .background(Color.black)
+        .clipped()
     }
 
     private func controls(fullscreen: Bool) -> some View {

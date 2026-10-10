@@ -112,9 +112,30 @@ struct PHProfile: Hashable {
     var name: String
     var avatar: String
     var subscribers: String
+    var rank: String
+    var views: String
     var href: String
     var about: String
+    var userID: String
+    var subscribed: Bool
+    var subscribeURL: String
+    var unsubscribeURL: String
     var videos: [PHVideo]
+}
+
+struct PHSuggestion: Identifiable, Hashable, Codable {
+    var id: String { title + "|" + href }
+    var title: String
+    var href: String
+    var avatar: String
+}
+
+struct PHSubscription: Identifiable, Hashable, Codable {
+    var id: String { userID }
+    var userID: String
+    var name: String
+    var href: String
+    var avatar: String
 }
 
 struct PHPage {
@@ -125,6 +146,7 @@ struct PHPage {
 struct PHAccount: Codable, Hashable {
     var email: String
     var displayName: String
+    var provider: String
 }
 
 enum PHOrientation: String, CaseIterable, Identifiable, Codable {
@@ -199,4 +221,5 @@ enum PHRoute: Hashable {
     case login
     case liked
     case history
+    case subscriptions
 }

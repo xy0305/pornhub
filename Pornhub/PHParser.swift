@@ -329,8 +329,58 @@ enum PHParser {
             ?? "")
         let avatar = decode(first(html, pattern: #"id="getAvatar"[^>]+src="([^"]+)""#) ?? "")
         let subscribers = clean(first(html, pattern: #"([0-9][0-9.,]*[KMB]?)\s*订阅者"#) ?? "")
-        let about = clean(first(html, pattern: #"class="aboutMeSection"[^>]*>(.*?)</div>"#) ?? "")
-        return PHProfile(name: name, avatar: avatar, subscribers: subscribers, href: href, about: about, videos: videos(in: html))
+        let views = clean(first(html, pattern: #"([0-9][0-9.,]*[KMB]?)\s*次观看"#) ?? "")
+        let rank = clean(first(html, pattern: #"([0-9][0-9,]*)\s*(?:模特排名|排名)"#) ?? "")
+        let about = clean(first(html, pattern: #"class="profileReadMoreExcerpt"[^>]*>(.*?)</div>"#)
+            ?? first(html, pattern: #"class="aboutMeSection"[^>]*>(.*?)</div>"#)
+            ?? "")
+        let userID = first(html, pattern: #"data-button-id="subscribe_(\d+)""#)
+            ?? first(html, pattern: #"data-user-id="(\d+)""#)
+            ?? ""
+        let subscribeURL = decode(first(html, pattern: #"subscribeToUserUrl":"([^"]+)""#) ?? "")
+        let unsubscribeURL = decode(first(html, pattern: #"unSubscribeFromUserUrl":"([^"]+)""#) ?? "")
+        let subscribed = first(html, pattern: #"data-subscribed="([01])""#) == "1"
+        return PHProfile(
+            name: name,
+            avatar: avatar,
+            subscribers: subscribers,
+            rank: rank,
+            views: views,
+            href: href,
+            about: about,
+            userID: userID,
+            subscribed: subscribed,
+            subscribeURL: subscribeURL,
+            unsubscribeURL: unsubscribeURL,
+            videos: videos(in: html)
+        )
+    }
+
+    static func suggestions(in html: String) -> (searches: [PHSuggestion], performers: [PHSuggestion]) {
+        let lists = pairMatches(html, pattern: #"<search-list\b([^>]*)search-list='(\[.*?\])'"#)
+        var searches: [PHSuggestion] = []
+        var performers: [PHSuggestion] = []
+        for pair in lists {
+            let kind = pair.0
+            let rows = jsonRows(pair.1)
+            let target = kind.contains("pornstar") ? true : false
+            for row in rows {
+                guard let title = stringValue(row["value"]), !title.isEmpty else { continue }
+                let href = stringValue(row["href"]) ?? ""
+                let avatar = stringValue(row["avatar"]) ?? ""
+                let item = PHSuggestion(title: title, href: href, avatar: avatar)
+                if target || !avatar.isEmpty { performers.append(item) }
+                else { searches.append(item) }
+            }
+        }
+        if searches.isEmpty && performers.isEmpty {
+            let rows = jsonRows(first(html, pattern: #"search-list='(\[.*?\])'"#) ?? "")
+            searches = rows.compactMap { row in
+                guard let title = stringValue(row["value"]), !title.isEmpty else { return nil }
+                return PHSuggestion(title: title, href: stringValue(row["href"]) ?? "", avatar: stringValue(row["avatar"]) ?? "")
+            }
+        }
+        return (Array(searches.prefix(16)), Array(performers.prefix(16)))
     }
 
     static func loginToken(in html: String) -> String {
@@ -383,6 +433,16 @@ enum PHParser {
             index = html.index(after: index)
         }
         return nil
+    }
+
+    private static func jsonRows(_ text: String) -> [[String: Any]] {
+        guard let data = decode(text).data(using: .utf8),
+              let rows = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return [] }
+        return rows
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        string(value)
     }
 
     private static func jsonObject(_ text: String) -> [String: Any]? {
