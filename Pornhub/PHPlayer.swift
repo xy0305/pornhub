@@ -156,6 +156,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     private let previewLabel = UILabel()
     private var seekSession = PHSeekSession()
     private var seekTimeout: DispatchWorkItem?
+    private var pendingQualitySeek: (layer: KSPlayerLayer, time: Double, resume: Bool)?
     private let orange = UIColor(red: 1, green: 0.58, blue: 0, alpha: 1)
 
     override var isMaskShow: Bool {
@@ -420,11 +421,23 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         // IOSVideoPlayerView.change awaits thumbnailImageAtCurrentTime BEFORE
         // switching URL. A stuck decoder/network can strand that Task forever.
         // Use the public set(resource:) path (same view/owner), no thumbnail gate.
+        pendingQualitySeek = nil
         set(resource: resource, definitionIndex: definitionIndex)
         playerLayer?.player.contentMode = .scaleAspectFit
-        playerLayer?.seek(time: time.isFinite ? max(0, time) : 0, autoPlay: resume) { _ in }
-        if !resume { pause() }
+        if let layer = playerLayer {
+            pendingQualitySeek = (layer, time.isFinite ? max(0, time) : 0, resume)
+            if !resume { pause() }
+            restoreQualityPositionIfReady(layer)
+        }
         setFullscreenControls(landscapeButton.isSelected)
+    }
+
+    private func restoreQualityPositionIfReady(_ layer: KSPlayerLayer) {
+        guard let pending = pendingQualitySeek, pending.layer === layer,
+              playerLayer === layer, layer.player.isReadyToPlay, layer.player.seekable else { return }
+        pendingQualitySeek = nil
+        layer.seek(time: pending.time, autoPlay: pending.resume) { _ in }
+        if !pending.resume { pause() }
     }
 
     override func updateUI(isFullScreen: Bool) {
@@ -452,6 +465,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     override func player(layer: KSPlayerLayer, state: KSPlayerState) {
         super.player(layer: layer, state: state)
         layer.player.contentMode = .scaleAspectFit
+        if state == .readyToPlay { restoreQualityPositionIfReady(layer) }
         if state == .error || state == .playedToTheEnd {
             seekTimeout?.cancel()
             seekSession.cancel()

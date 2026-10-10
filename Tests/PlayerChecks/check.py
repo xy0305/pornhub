@@ -38,6 +38,11 @@ checks = {
  'preview and accessible seeking': 'previewLabel.text =' in p and 'override func accessibilityIncrement()' in p,
  'transport touch size': 'control.widthAnchor.constraint(equalToConstant: 44)' in p and 'control.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)' in p,
  'gradient surfaces': 'bottomMaskView.gradientLayer.colors' in p and 'topMaskView.gradientLayer.colors' in p,
+ 'quality menu immediate': 'override func set(resource: KSPlayerResource' in p and 'button.showsMenuAsPrimaryAction = true' in p,
+ 'quality source not thumbnail gated': 'super.change(definitionIndex:' not in p and 'set(resource: resource, definitionIndex: definitionIndex)' in p,
+ 'quality position readiness and identity': 'pending.layer === layer' in p and 'if state == .readyToPlay { restoreQualityPositionIfReady(layer) }' in p and 'autoPlay: pending.resume' in p,
+ 'quality stale menu rejection': 'self.resource === resource' in p,
+ 'quality overlay stacking': 'bringSubviewToFront(button)' in p,
  'audited dependency': 'kind = exactVersion;' in b and 'version = 2.3.4;' in b,
 }
 for name, ok in checks.items(): print(('PASS: ' if ok else 'FAIL: ') + name)
