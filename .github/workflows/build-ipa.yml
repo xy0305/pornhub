@@ -32,6 +32,9 @@ jobs:
           sudo xcode-select -s "$XCODE/Contents/Developer"
           xcodebuild -version
 
+      - name: Run native UI architecture contracts
+        run: python3 Tests/UIChecks/check.py
+
       - name: Run player architecture regression guards
         run: |
           set -euo pipefail

@@ -16,7 +16,7 @@ struct PHGIFGrid: View {
                             PHRemoteImage(url: item.still, ratio: 1)
                             Text(item.title).font(.system(size: 12, weight: .semibold)).lineLimit(1).padding(8)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .onAppear { if item.id == model.items.last?.id { Task { await model.loadMore() } } }
@@ -92,7 +92,7 @@ struct PHAlbumGrid: View {
                 ForEach(model.items) { item in
                     Button { path.append(PHRoute.album(item)) } label: {
                         VStack(alignment: .leading, spacing: 6) {
-                            PHRemoteImage(url: item.thumb, ratio: 1).clipShape(RoundedRectangle(cornerRadius: 8))
+                            PHRemoteImage(url: item.thumb, ratio: 1).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             Text(item.title).font(.system(size: 14, weight: .semibold)).lineLimit(2)
                             if !item.photoCount.isEmpty {
                                 Text("\(item.photoCount) 照片").font(.system(size: 12)).foregroundStyle(PHTheme.secondary)
@@ -209,7 +209,7 @@ struct PHPlaylistGrid: View {
                 ForEach(model.items) { item in
                     Button { path.append(PHRoute.playlist(item)) } label: {
                         VStack(alignment: .leading, spacing: 8) {
-                            PHRemoteImage(url: item.thumb).clipShape(RoundedRectangle(cornerRadius: 8))
+                            PHRemoteImage(url: item.thumb).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             Text(item.title).font(.system(size: 16, weight: .bold)).lineLimit(2)
                             if !item.models.isEmpty {
                                 Text(item.models).font(.system(size: 13)).foregroundStyle(PHTheme.secondary).lineLimit(1)
@@ -296,6 +296,7 @@ struct PHAccountSheet: View {
     @EnvironmentObject private var library: PHLibrary
     @State private var email = ""
     @State private var password = ""
+    @Environment(\.dismiss) private var dismiss
     @State private var googleToken = ""
     @State private var busy = false
     @State private var message: String?
@@ -304,6 +305,18 @@ struct PHAccountSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    HStack(spacing: 14) {
+                        Image(systemName: library.account == nil ? "person.crop.circle" : "person.crop.circle.badge.checkmark")
+                            .font(.largeTitle).foregroundStyle(PHTheme.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(library.account == nil ? "欢迎回来" : "账号中心").font(.title2.bold())
+                            Text("管理登录与订阅").font(.subheadline).foregroundStyle(PHTheme.secondary)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+                .listRowBackground(PHTheme.elevated)
                 if let account = library.account {
                     Section("已登录") {
                         Text(account.email)
@@ -321,6 +334,8 @@ struct PHAccountSheet: View {
                     }
                     Section {
                         Button(busy ? "正在登录" : "登录") { Task { await login() } }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .phAction(prominent: true)
                             .disabled(busy || email.isEmpty || password.isEmpty)
                     }
                 }
@@ -331,6 +346,11 @@ struct PHAccountSheet: View {
                 }
             }
             .navigationTitle("账号")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
             .scrollContentBackground(.hidden)
             .background(PHTheme.background)
         }
@@ -386,12 +406,14 @@ struct PHSubscriptionList: View {
                             Spacer()
                             Image(systemName: "chevron.right").foregroundStyle(PHTheme.muted)
                         }
-                        .padding(.horizontal, 16)
+                        .padding(16)
+                        .phCard()
+                        .padding(.horizontal, PHLayout.gutter)
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.top, 12)
+            .padding(.top, 16)
         }
         .background(PHTheme.background)
         .navigationTitle("订阅")

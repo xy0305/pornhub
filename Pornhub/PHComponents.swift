@@ -16,7 +16,7 @@ struct PHVideoCard: View {
                         .padding(8)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 2))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             HStack(alignment: .top, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -39,19 +39,17 @@ struct PHVideoCard: View {
                         }
                     }
                     Text(video.title)
-                        .font(.system(size: 16, weight: .regular))
+                        .font(.headline)
                         .foregroundStyle(PHTheme.text)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(PHTheme.secondary)
-                    .frame(width: 28, height: 28)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 14)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 14)
+        .phCard()
+        .padding(.horizontal, PHLayout.gutter)
     }
 }
 
@@ -77,14 +75,14 @@ struct PHChipRow: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 16)
-                        .frame(height: 40)
+                        .frame(minHeight: PHLayout.controlHeight)
                         .background(Color(white: 0.16), in: Capsule())
                         .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, PHLayout.gutter)
         }
     }
 }
@@ -140,8 +138,7 @@ struct PHErrorBanner: View {
                 .foregroundStyle(PHTheme.secondary)
                 .multilineTextAlignment(.center)
             Button("重试", action: retry)
-                .buttonStyle(.borderedProminent)
-                .tint(PHTheme.orange)
+                .phAction(prominent: true)
         }
         .padding(24)
     }

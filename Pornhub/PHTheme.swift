@@ -11,6 +11,80 @@ enum PHTheme {
     static let hairline = Color.white.opacity(0.08)
 }
 
+// Shared visual tokens; content surfaces stay opaque for readable media/text.
+enum PHLayout {
+    static let gutter: CGFloat = 16
+    static let radius: CGFloat = 20
+    static let controlHeight: CGFloat = 44
+}
+
+private struct PHGlassSurface: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var radius: CGFloat
+    var interactive: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        if reduceTransparency {
+            content.background(PHTheme.card, in: shape)
+                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1))
+        } else if #available(iOS 26.0, *) {
+            content.glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+        } else {
+            content.background(.regularMaterial, in: shape)
+                .overlay(shape.stroke(PHTheme.hairline, lineWidth: 1))
+        }
+    }
+}
+
+struct PHGlassGroup<Content: View>: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ViewBuilder var content: () -> Content
+
+    @ViewBuilder var body: some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            GlassEffectContainer(spacing: 8) { content() }
+        } else {
+            content()
+        }
+    }
+}
+
+private struct PHActionStyle: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    var prominent: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(iOS 26.0, *), !reduceTransparency {
+            if prominent {
+                content.buttonStyle(.glassProminent).tint(PHTheme.orange)
+            } else {
+                content.buttonStyle(.glass)
+            }
+        } else if prominent {
+            content.buttonStyle(.borderedProminent).tint(PHTheme.orange)
+        } else {
+            content.buttonStyle(.bordered).tint(.white)
+        }
+    }
+}
+
+extension View {
+    func phGlass(radius: CGFloat = PHLayout.radius, interactive: Bool = false) -> some View {
+        modifier(PHGlassSurface(radius: radius, interactive: interactive))
+    }
+
+    func phAction(prominent: Bool = false) -> some View {
+        modifier(PHActionStyle(prominent: prominent))
+    }
+
+    func phCard(radius: CGFloat = PHLayout.radius) -> some View {
+        background(PHTheme.elevated, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .stroke(PHTheme.hairline, lineWidth: 1))
+    }
+}
+
 struct PHRemoteImage: View {
     let url: String
     var ratio: CGFloat = 16.0 / 9.0

@@ -50,41 +50,49 @@ struct PHHomeView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 2) {
-            iconButton("line.3.horizontal", color: PHTheme.orange) { showMenu = true }
-            iconButton("figure.stand.dress", color: .white) { showMenu = true }
-            Image(systemName: "heart")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 44)
-                .overlay(alignment: .bottom) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 8, weight: .bold))
-                        .offset(y: 8)
+        PHGlassGroup {
+            VStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    iconButton("line.3.horizontal", color: PHTheme.orange) { showMenu = true }
+                        .accessibilityLabel("浏览菜单与取向")
+                    Spacer(minLength: 0)
+                    PHLogo().accessibilityLabel("Pornhub")
+                    Spacer(minLength: 0)
+                    iconButton("person.crop.circle", color: .white) { showAccount = true }
+                        .accessibilityLabel("账号")
                 }
-                .onTapGesture { path.append(PHRoute.subscriptions) }
-            Spacer()
-            PHLogo()
-            Spacer()
-            iconButton("magnifyingglass", color: .white) { showSearch = true }
-            iconButton("person.crop.circle", color: Color(white: 0.75)) { showAccount = true }
+                HStack(spacing: 10) {
+                    Button { showSearch = true } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(PHTheme.orange)
+                            Text("搜索视频、明星、分类").font(.subheadline).foregroundStyle(PHTheme.secondary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: PHLayout.controlHeight)
+                        .phGlass(radius: 24, interactive: true)
+                    }
+                    .buttonStyle(.plain)
+                    iconButton("heart", color: .white) { path.append(PHRoute.subscriptions) }
+                        .accessibilityLabel("订阅")
+                }
+            }
         }
-        .padding(.horizontal, 6)
-        .padding(.bottom, 4)
-        .background(PHTheme.background)
+        .padding(.horizontal, PHLayout.gutter)
+        .padding(.vertical, 10)
     }
 
     private var titleRow: some View {
         HStack(spacing: 8) {
             Text("热门色情视频")
-                .font(.system(size: 26, weight: .bold))
+                .font(.title2.bold())
             Circle()
                 .fill(Color.blue)
                 .frame(width: 16, height: 16)
                 .overlay(Image(systemName: "globe").font(.system(size: 9, weight: .bold)).foregroundStyle(.white))
             Spacer()
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, PHLayout.gutter)
         .padding(.top, 8)
     }
 
@@ -93,7 +101,8 @@ struct PHHomeView: View {
             Image(systemName: name)
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(color)
-                .frame(width: 42, height: 44)
+                .frame(width: 44, height: 44)
+                .phGlass(radius: 22, interactive: true)
         }
         .buttonStyle(.plain)
     }

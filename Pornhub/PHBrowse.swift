@@ -19,11 +19,11 @@ struct PHSearchSheet: View {
                         .autocorrectionDisabled()
                         .submitLabel(.search)
                         .padding(14)
-                        .background(PHTheme.card, in: RoundedRectangle(cornerRadius: 12))
+                        .phGlass(radius: 24)
                         .onSubmit { submit() }
                     Button("搜索") { submit() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(PHTheme.orange)
+                        .frame(minHeight: 44)
+                        .phAction(prominent: true)
                         .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     if !searches.isEmpty {
                         Text("热门搜索")
@@ -150,13 +150,14 @@ struct PHListingView: View {
                         Task { await model.setSort(sort) }
                     }
                     .font(.system(size: 14, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
+                    .padding(.horizontal, PHLayout.gutter)
+                    .frame(minHeight: PHLayout.controlHeight)
+                    .accessibilityAddTraits(model.sort == sort ? .isSelected : [])
                     .background(model.sort == sort ? PHTheme.orange : PHTheme.card, in: Capsule())
                     .foregroundStyle(model.sort == sort ? .black : .white)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, PHLayout.gutter)
             .padding(.top, 8)
         }
     }
@@ -255,7 +256,7 @@ struct PHVideoDetailView: View {
                 }
                 VStack(alignment: .leading, spacing: 10) {
                     Text(model.detail?.video.title ?? video.title)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.title2.bold())
                     HStack(spacing: 12) {
                         meta(model.detail?.viewsText ?? video.views, "eye")
                         if let rating = model.detail?.ratingText, !rating.isEmpty {
@@ -264,17 +265,21 @@ struct PHVideoDetailView: View {
                         if let seconds = model.detail?.durationSeconds, seconds > 0 {
                             meta(PHParser.duration(seconds), "clock")
                         }
-                        Spacer()
-                        Button {
-                            library.toggleLike(model.detail?.video ?? video)
-                        } label: {
-                            Image(systemName: library.isLiked(model.detail?.video ?? video) ? "heart.fill" : "heart")
-                                .foregroundStyle(PHTheme.orange)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(PHTheme.secondary)
+                    PHGlassGroup {
+                        ViewThatFits(in: .horizontal) {
+                            HStack(spacing: 12) {
+                                likeButton
+                                authorButton
+                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                likeButton
+                                authorButton
+                            }
                         }
                     }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(PHTheme.secondary)
-                    authorButton
                     if let tags = model.detail?.tags, !tags.isEmpty {
                         PHChipRow(chips: tags) { chip in
                             path.append(PHRoute.listing(title: chip.title, path: chip.href))
@@ -284,11 +289,13 @@ struct PHVideoDetailView: View {
                         PHErrorBanner(message: message) { Task { await model.load() } }
                     }
                 }
-                .padding(.horizontal, 14)
+                .padding(16)
+                .phCard()
+                .padding(.horizontal, PHLayout.gutter)
                 if !model.related.isEmpty {
                     Text("相关视频")
                         .font(.system(size: 18, weight: .bold))
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, PHLayout.gutter)
                     ForEach(model.related) { item in
                         Button {
                             library.remember(item)
@@ -304,6 +311,18 @@ struct PHVideoDetailView: View {
         .background(PHTheme.background)
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.load() }
+    }
+
+    private var likeButton: some View {
+        Button {
+            library.toggleLike(model.detail?.video ?? video)
+        } label: {
+            Label(library.isLiked(model.detail?.video ?? video) ? "已点赞" : "点赞", systemImage: library.isLiked(model.detail?.video ?? video) ? "heart.fill" : "heart")
+                .frame(minHeight: 44)
+        }
+        .phAction()
+        .tint(PHTheme.orange)
+        .accessibilityLabel(library.isLiked(model.detail?.video ?? video) ? "取消点赞" : "点赞")
     }
 
     private var authorButton: some View {
@@ -324,7 +343,9 @@ struct PHVideoDetailView: View {
                     .foregroundStyle(PHTheme.muted)
             }
         }
-        .buttonStyle(.plain)
+        .frame(minHeight: 44)
+        .phAction()
+        .disabled(current.authorURL.isEmpty)
     }
 
     private func meta(_ text: String, _ icon: String) -> some View {

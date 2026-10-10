@@ -9,7 +9,7 @@ struct PHCategoryGrid: View {
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 12)], spacing: 12) {
                 ForEach(model.items) { item in
                     Button {
                         path.append(PHRoute.listing(title: item.title, path: item.href))
@@ -25,12 +25,12 @@ struct PHCategoryGrid: View {
                             }
                             .padding(10)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: PHLayout.radius, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(12)
+            .padding(PHLayout.gutter)
             if model.loading { PHLoading() }
         }
         .background(PHTheme.background)
@@ -71,7 +71,7 @@ struct PHPerformerGrid: View {
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 16) {
                 ForEach(model.items) { item in
                     Button {
                         path.append(PHRoute.profile(href: item.href, name: item.name))
@@ -92,11 +92,14 @@ struct PHPerformerGrid: View {
                                 .lineLimit(2)
                                 .multilineTextAlignment(.center)
                         }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .phCard()
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(12)
+            .padding(PHLayout.gutter)
             if model.loading { PHLoading() }
         }
         .background(PHTheme.background)
@@ -165,7 +168,9 @@ struct PHProfileView: View {
                     }
                     Spacer()
                 }
-                .padding(.horizontal, 16)
+                .padding(16)
+                .phCard()
+                .padding(.horizontal, PHLayout.gutter)
                 Button {
                     Task { await model.toggleSubscription(library) }
                 } label: {
@@ -173,10 +178,9 @@ struct PHProfileView: View {
                         .font(.system(size: 16, weight: .bold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 46)
-                        .background(model.subscribed ? PHTheme.card : PHTheme.orange, in: Capsule())
                         .foregroundStyle(model.subscribed ? .white : .black)
                 }
-                .buttonStyle(.plain)
+                .phAction(prominent: !model.subscribed)
                 .disabled(model.subscribing)
                 .padding(.horizontal, 16)
                 if let message = model.message {
