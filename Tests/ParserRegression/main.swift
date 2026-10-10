@@ -29,6 +29,23 @@ struct PHParserRegression {
             precondition(PHProfileFilters.videoEntry(in: "<a href=\"/model/a/videos\">Videos</a>", href: "/model/a") != nil)
             precondition(PHProfileFilters.videoEntry(in: "<a href=\"/model/b/videos\">Videos</a>", href: "/model/a") == nil)
             print("Official author sorting fixtures, type filters and pagination passed")
+            let subscriptionsURL = URL(string: "https://cn.pornhub.com/subscriptions")!
+            let anonymous = try String(contentsOfFile: root + "/subscriptions-anonymous.html", encoding: .utf8)
+            do {
+                _ = try PHSubscriptionParser.parse(anonymous, url: subscriptionsURL)
+                preconditionFailure("Anonymous subscription gate accepted")
+            } catch PHSubscriptionError.signIn { }
+            let synthetic = try String(contentsOfFile: root + "/subscriptions-synthetic.html", encoding: .utf8)
+            let feed = try PHSubscriptionParser.parse(synthetic, url: subscriptionsURL)
+            precondition(feed.videos.map(\.vkey) == ["subscription1"])
+            precondition(feed.nextHref == "https://cn.pornhub.com/subscriptions?page=2")
+            let page2 = try PHSubscriptionParser.parse(synthetic, url: URL(string: feed.nextHref!)!)
+            precondition(page2.nextHref == nil)
+            do {
+                _ = try PHSubscriptionParser.parse("<script>var isLoggedInUser = 1;</script><li data-video-vkey=\"unrelated\"><img alt=\"Not feed\"></li>", url: subscriptionsURL)
+                preconditionFailure("Unknown subscription schema accepted")
+            } catch PHSubscriptionError.schema { }
+            print("Anonymous subscription gate and synthetic feed scope/pagination passed; real account not tested")
         } catch {
             fputs("fixture check failed: \(error)\n", stderr)
             exit(1)

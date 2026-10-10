@@ -117,6 +117,7 @@ final class PHLibrary: ObservableObject {
     @Published var history: [PHVideo] = []
     @Published var subscriptions: [PHSubscription] = []
     @Published var account: PHAccount?
+    @Published private(set) var sessionRevision = UUID()
 
     private let likedKey = "ph.liked"
     private let historyKey = "ph.history"
@@ -126,7 +127,10 @@ final class PHLibrary: ObservableObject {
     init() {
         liked = Self.videos(likedKey)
         history = Self.videos(historyKey)
-        subscriptions = Self.subscriptions(subscriptionKey)
+        // Legacy unscoped hints are not a server subscription list and must not
+        // leak between accounts. Feed content is memory-only in its own model.
+        UserDefaults.standard.removeObject(forKey: subscriptionKey)
+        subscriptions = []
         account = Self.account(accountKey)
     }
 
@@ -149,13 +153,26 @@ final class PHLibrary: ObservableObject {
     }
 
     func signIn(_ account: PHAccount) {
+        subscriptions = []
+        sessionRevision = UUID()
         self.account = account
         Self.save(account, accountKey)
     }
 
     func signOut() {
+        subscriptions = []
+        sessionRevision = UUID()
         account = nil
+        UserDefaults.standard.removeObject(forKey: subscriptionKey)
         UserDefaults.standard.removeObject(forKey: accountKey)
+        // Local sign-out clears website authentication too; no server write.
+        for cookie in HTTPCookieStorage.shared.cookies ?? [] {
+            let host = cookie.domain.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+            if host == "pornhub.com" || host.hasSuffix(".pornhub.com") {
+                HTTPCookieStorage.shared.deleteCookie(cookie)
+            }
+        }
+        URLCache.shared.removeAllCachedResponses()
     }
 
     func isSubscribed(_ profile: PHProfile) -> Bool {
@@ -167,7 +184,7 @@ final class PHLibrary: ObservableObject {
         if subscribed {
             subscriptions.insert(PHSubscription(userID: profile.userID, name: profile.name, href: profile.href, avatar: profile.avatar), at: 0)
         }
-        Self.save(subscriptions, subscriptionKey)
+        // A per-session button hint only; never persisted or used as feed data.
     }
 
     private static func subscriptions(_ key: String) -> [PHSubscription] {

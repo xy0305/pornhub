@@ -19,6 +19,8 @@ struct PornhubApp: App {
                     NavigationStack {
                         PHProfileView(href: "/model/fixture/videos", name: "Fixture Author", path: .constant(NavigationPath()))
                     }
+                } else if ProcessInfo.processInfo.arguments.contains("-PHSubscriptionsFixture") {
+                    NavigationStack { PHServerSubscriptionsView(path: .constant(NavigationPath())) }
                 } else {
                     PHRootView()
                 }

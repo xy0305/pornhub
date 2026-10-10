@@ -50,6 +50,7 @@ jobs:
             Pornhub/PHModels.swift \
             Pornhub/PHParser.swift \
             Pornhub/PHProfileFilters.swift \
+            Pornhub/PHSubscriptionParser.swift \
             Pornhub/PHFixtureCheck.swift \
             Tests/ParserRegression/main.swift \
             -o /tmp/pornhub-parser-tests

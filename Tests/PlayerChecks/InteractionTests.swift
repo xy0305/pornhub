@@ -73,6 +73,37 @@ final class InteractionTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Fixture lg page 1"].waitForExistence(timeout: 5))
     }
 
+    func testServerSubscriptionFixtureRetryPagingRefreshAndAccountIsolation() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-PHSubscriptionsFixture"]
+        app.launch()
+        let retry = app.buttons["重试"]
+        XCTAssertTrue(retry.waitForExistence(timeout: 15))
+        retry.tap()
+        XCTAssertTrue(app.staticTexts["Subscription fixture A page 1"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Not a subscription"].exists)
+        let more = app.buttons["subscriptions.more"]
+        if !more.isHittable { app.swipeUp() }
+        more.tap()
+        XCTAssertTrue(app.staticTexts["Subscription fixture A page 2"].waitForExistence(timeout: 8))
+        app.buttons["subscriptions.refresh"].tap()
+        XCTAssertTrue(app.staticTexts["Subscription fixture A page 1"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Subscription fixture A page 2"].exists)
+        if !more.isHittable { app.swipeUp() }
+        more.tap()
+        let account = app.buttons["subscriptions.fixture.account"]
+        if !account.isHittable { app.swipeUp() }
+        account.tap()
+        XCTAssertTrue(app.staticTexts["Subscription fixture B page 1"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Subscription fixture A page 1"].exists)
+        XCTAssertFalse(app.staticTexts["Subscription fixture A page 2"].exists)
+        let logout = app.buttons["subscriptions.fixture.logout"]
+        if !logout.isHittable { app.swipeUp() }
+        logout.tap()
+        XCTAssertTrue(app.staticTexts["subscriptions.login"].waitForExistence(timeout: 8))
+        XCTAssertFalse(app.staticTexts["Subscription fixture B page 1"].exists)
+    }
+
     func testLandscapeQualityMenuActuallyChangesURLWithoutReadyPlayback() {
         let app = launch(quality: true)
         let quality = app.buttons["player.quality"]

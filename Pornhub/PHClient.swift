@@ -106,6 +106,26 @@ actor PHClient {
         return PHProfileFilters.parse(html: html, href: href, page: page, url: target)
     }
 
+    func subscriptions(href: String = "/subscriptions") async throws -> PHSubscriptionPage {
+        guard let target = URL(string: PHParser.absolute(href)),
+              target.host == Self.origin.host, target.path == "/subscriptions" else { throw PHSubscriptionError.schema }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-PHSubscriptionsFixture") {
+            return try await PHSubscriptionsFixture.load(url: target)
+        }
+        #endif
+        // Same URLSession and shared cookie jar as authenticate; no anonymous clone.
+        var request = URLRequest(url: target, cachePolicy: .reloadIgnoringLocalCacheData)
+        request.setValue(Self.origin.absoluteString + "/subscriptions", forHTTPHeaderField: "Referer")
+        let (data, response) = try await session.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if code == 401 || code == 403 { throw PHSubscriptionError.signIn }
+        guard (200..<300).contains(code), let html = String(data: data, encoding: .utf8) else {
+            throw PHError.network("订阅请求失败 \(code)")
+        }
+        return try PHSubscriptionParser.parse(html, url: response.url ?? target)
+    }
+
     func profile(href: String) async throws -> PHProfile {
         PHParser.profile(in: try await text(url: PHParser.absolute(href).asURL ?? Self.origin), href: href)
     }

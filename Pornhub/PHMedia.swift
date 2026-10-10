@@ -384,40 +384,8 @@ struct PHAccountSheet: View {
 }
 
 struct PHSubscriptionList: View {
-    @EnvironmentObject private var library: PHLibrary
     @Binding var path: NavigationPath
-
-    var body: some View {
-        ScrollView {
-            if library.subscriptions.isEmpty {
-                ContentUnavailableView("还没有订阅", systemImage: "person.badge.plus", description: Text("在作者页订阅后会同步到这里"))
-                    .padding(.top, 80)
-            }
-            LazyVStack(spacing: 12) {
-                ForEach(library.subscriptions) { item in
-                    Button {
-                        path.append(PHRoute.profile(href: item.href, name: item.name))
-                    } label: {
-                        HStack(spacing: 12) {
-                            PHRemoteImage(url: item.avatar, ratio: 1)
-                                .frame(width: 54, height: 54)
-                                .clipShape(Circle())
-                            Text(item.name).font(.system(size: 17, weight: .semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(PHTheme.muted)
-                        }
-                        .padding(16)
-                        .phCard()
-                        .padding(.horizontal, PHLayout.gutter)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.top, 16)
-        }
-        .background(PHTheme.background)
-        .navigationTitle("订阅")
-    }
+    var body: some View { PHServerSubscriptionsView(path: $path) }
 }
 
 struct PHSavedList: View {

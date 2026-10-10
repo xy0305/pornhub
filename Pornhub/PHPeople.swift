@@ -343,12 +343,15 @@ final class PHProfileModel: ObservableObject {
         guard let profile, !subscribing else { return }
         subscribing = true
         message = nil
+        let sessionRevision = library.sessionRevision
         do {
             let now = try await client.setSubscription(profile: profile, subscribe: !subscribed)
+            guard sessionRevision == library.sessionRevision else { subscribing = false; return }
             subscribed = now
             library.syncSubscription(profile, subscribed: now)
             message = now ? "已同步到当前账号" : "已从当前账号取消订阅"
         } catch {
+            guard sessionRevision == library.sessionRevision else { subscribing = false; return }
             message = error.localizedDescription
         }
         subscribing = false
