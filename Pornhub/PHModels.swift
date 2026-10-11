@@ -42,6 +42,12 @@ struct PHQuality: Identifiable, Hashable, Codable {
 
 /// Resolution comes from source metadata, never from a site default flag.
 /// Unknown/adaptive sources remain usable, but never claim a made-up resolution.
+enum PHPlayerGesturePolicy {
+    static func adjusted(initial: CGFloat, translation: CGFloat, height: CGFloat) -> CGFloat {
+        min(1, max(0, initial - translation / max(180, height * 0.8)))
+    }
+}
+
 enum PHQualityPolicy {
     static func ranked(_ qualities: [PHQuality]) -> [PHQuality] {
         var seen = Set<URL>()

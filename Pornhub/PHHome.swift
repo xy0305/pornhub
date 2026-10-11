@@ -54,7 +54,7 @@ struct PHHomeView: View {
     private var header: some View {
         PHGlassGroup {
             VStack(spacing: 10) {
-                HStack(spacing: 10) {
+                HStack(spacing: 6) {
                     iconButton("line.3.horizontal", color: PHTheme.orange) { present(.menu) }
                         .accessibilityLabel("浏览菜单与取向")
                         .accessibilityIdentifier("home.menu")

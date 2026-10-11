@@ -87,7 +87,7 @@ struct PHLogo: View {
                 .padding(.horizontal, 4).padding(.vertical, 1)
                 .background(PHTheme.orange, in: RoundedRectangle(cornerRadius: 4))
         }
-        .font(.system(size: 24, weight: .black)).tracking(-0.6)
+        .font(.system(size: 22, weight: .black)).tracking(-0.6)
     }
 }
 

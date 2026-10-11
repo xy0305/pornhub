@@ -4,6 +4,12 @@ import Foundation
 struct PHParserRegression {
     static func main() {
         do {
+            precondition(PHPlayerGesturePolicy.adjusted(initial: 0.5, translation: -10000, height: 390) == 1)
+            precondition(PHPlayerGesturePolicy.adjusted(initial: 0.5, translation: 10000, height: 390) == 0)
+            precondition(PHPlayerGesturePolicy.adjusted(initial: 0.5, translation: 0, height: 0) == 0.5)
+            precondition(PHPlayerGesturePolicy.adjusted(initial: 0.5, translation: -90, height: 0) == 1)
+            precondition(PHPlayerGesturePolicy.adjusted(initial: 0.5, translation: 90, height: 0) == 0)
+            print("Production gesture clamping/sensitivity passed; hardware brightness/volume still require device acceptance")
             try PHFixtureCheck.run()
             let qualityRows: [[String: Any]] = [
                 ["format": "hls", "quality": "360", "defaultQuality": true, "videoUrl": "https://media.example/360"],

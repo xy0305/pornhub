@@ -305,7 +305,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         systemVolume.subviews.compactMap { $0 as? UISlider }.first
     }
 
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === panGesture else { return true }
         guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return false }
         let velocity = panGesture.velocity(in: self)
@@ -329,8 +329,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     override func panGestureChanged(velocity point: CGPoint, direction: KSPanDirection) {
         guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return }
         if verticalGesture {
-            let delta = (translationStart - panGesture.translation(in: self).y) / max(180, bounds.height * 0.8)
-            let value = min(1, max(0, adjustmentStart + delta))
+            let value = PHPlayerGesturePolicy.adjusted(initial: adjustmentStart, translation: panGesture.translation(in: self).y - translationStart, height: bounds.height)
             if verticalVolume {
                 guard let slider = publicVolumeSlider else { showHUD("请使用设备音量按键"); return }
                 slider.setValue(Float(value), animated: false)
