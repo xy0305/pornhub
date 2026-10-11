@@ -22,7 +22,7 @@ struct PHSearchSheet: View {
                         .focused($searchFocused)
                         .accessibilityIdentifier("search.input")
                         .padding(14)
-                        .phGlass(radius: 24)
+                        .phCard(radius: 12)
                         .onSubmit { submit() }
                     Button("搜索") { submit() }
                         .frame(minHeight: 44)
@@ -39,7 +39,7 @@ struct PHSearchSheet: View {
                             .buttonStyle(.plain)
                             .font(.system(size: 17))
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 4)
+                            .frame(minHeight: PHLayout.controlHeight)
                         }
                     }
                     if !performers.isEmpty {
@@ -70,7 +70,9 @@ struct PHSearchSheet: View {
                 }
                 .padding(16)
             }
-            .background(PHTheme.background)
+            .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
+        .background(PHTheme.background)
             .navigationTitle("搜索")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -140,6 +142,8 @@ struct PHListingView: View {
                 if model.loading { PHLoading() }
             }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
@@ -251,7 +255,7 @@ struct PHVideoDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if model.detail?.qualities.isEmpty == false {
-                    PHPlayer(qualities: model.detail?.qualities ?? [])
+                    PHPlayer(qualities: model.detail?.qualities ?? [], videoID: video.vkey)
                 } else if model.loading {
                     PHRemoteImage(url: video.thumb)
                         .overlay { ProgressView().tint(.white) }
@@ -312,6 +316,8 @@ struct PHVideoDetailView: View {
                 }
             }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.load() }

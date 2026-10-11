@@ -8,10 +8,18 @@ final class InteractionTests: XCTestCase {
         return app
     }
 
+    private func capture(_ name: String) {
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = name + "-synthetic-fixture-not-live"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
     func testHeaderHitRegionsAndSingleSheetOwner() {
         let app = launch()
         let menu = app.buttons["home.menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 15))
+        capture("Build9-home")
         menu.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.25)).tap()
         XCTAssertTrue(app.navigationBars["菜单"].waitForExistence(timeout: 5))
         app.buttons["关闭"].tap()
@@ -36,6 +44,7 @@ final class InteractionTests: XCTestCase {
         app.launch()
         let latest = app.buttons["profile.sort.最新"]
         XCTAssertTrue(latest.waitForExistence(timeout: 15))
+        capture("Build9-author")
         let request = app.staticTexts["profile.request"]
         func requestContains(_ value: String) {
             expectation(for: NSPredicate(format: "label CONTAINS %@", value), evaluatedWith: request)
@@ -110,6 +119,13 @@ final class InteractionTests: XCTestCase {
         let app = launch(quality: true)
         let quality = app.buttons["player.quality"]
         XCTAssertTrue(quality.waitForExistence(timeout: 15))
+        XCTAssertEqual(quality.value as? String, "720.mp4", "Highest real resolution wins over site default 360p")
+        let pip = app.buttons["player.pip"]
+        XCTAssertTrue(pip.exists)
+        XCTAssertGreaterThanOrEqual(pip.frame.height, 44)
+        pip.tap()
+        XCTAssertTrue(app.staticTexts["视频就绪后可开启画中画"].exists || app.staticTexts["此设备或当前视频不支持画中画"].exists)
+        capture("Build9-player")
         app.buttons["横屏播放"].tap()
         XCTAssertTrue(app.buttons["退出横屏"].waitForExistence(timeout: 10))
         let back = app.buttons["player.back"]

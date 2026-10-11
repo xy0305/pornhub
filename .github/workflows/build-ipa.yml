@@ -76,6 +76,18 @@ jobs:
           path: InteractionResults.xcresult
           if-no-files-found: ignore
 
+      - name: Export simulator screenshots
+        if: always()
+        run: xcrun xcresulttool export attachments --path InteractionResults.xcresult --output-path UIEvidence || true
+
+      - name: Upload simulator screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build9-UIEvidence-synthetic-fixtures
+          path: UIEvidence
+          if-no-files-found: ignore
+
       - name: Build unsigned (iphoneos)
         run: |
           set -euo pipefail

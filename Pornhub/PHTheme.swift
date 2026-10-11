@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum PHTheme {
-    static let background = Color(red: 0.07, green: 0.07, blue: 0.07)
+    static let background = Color(red: 0.035, green: 0.035, blue: 0.04)
     static let elevated = Color(red: 0.12, green: 0.12, blue: 0.12)
     static let card = Color(red: 0.16, green: 0.16, blue: 0.16)
     static let orange = Color(red: 1.0, green: 0.55, blue: 0.0)
@@ -14,7 +14,8 @@ enum PHTheme {
 // Shared visual tokens; content surfaces stay opaque for readable media/text.
 enum PHLayout {
     static let gutter: CGFloat = 16
-    static let radius: CGFloat = 20
+    static let radius: CGFloat = 16
+    static let columns = [GridItem(.adaptive(minimum: 300, maximum: 560), spacing: 20)]
     static let controlHeight: CGFloat = 44
 }
 
@@ -80,8 +81,6 @@ extension View {
 
     func phCard(radius: CGFloat = PHLayout.radius) -> some View {
         background(PHTheme.elevated, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .stroke(PHTheme.hairline, lineWidth: 1).allowsHitTesting(false))
     }
 }
 
@@ -93,6 +92,21 @@ struct PHRemoteImage: View {
         Color.black
             .aspectRatio(ratio, contentMode: .fit)
             .overlay {
+                #if DEBUG
+                if url.hasPrefix("fixture://") {
+                    LinearGradient(colors: [PHTheme.card, PHTheme.orange.opacity(0.28)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        .overlay { Image(systemName: "play.rectangle").font(.largeTitle).foregroundStyle(PHTheme.secondary) }
+                } else {
+                    remoteContent
+                }
+                #else
+                remoteContent
+                #endif
+            }
+            .clipped()
+    }
+
+    @ViewBuilder private var remoteContent: some View {
                 if let target = URL(string: url), !url.isEmpty {
                     AsyncImage(url: target) { phase in
                         switch phase {
@@ -106,8 +120,6 @@ struct PHRemoteImage: View {
                         }
                     }
                 }
-            }
-            .clipped()
     }
 }
 

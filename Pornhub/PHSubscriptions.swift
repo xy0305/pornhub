@@ -97,7 +97,7 @@ struct PHServerSubscriptionsView: View {
                         .accessibilityIdentifier("subscriptions.login")
                 }
                 if model.loaded && model.videos.isEmpty {
-                    ContentUnavailableView("暂无订阅更新", systemImage: "person.2", description: Text("官网已返回空的视频列表"))
+                    PHEmptyState(title: "暂无订阅更新", icon: "person.2", message: "官网已返回空的视频列表")
                 }
                 ForEach(model.sessionRevision == library.sessionRevision ? model.videos : []) { video in
                     Button {
@@ -133,6 +133,8 @@ struct PHServerSubscriptionsView: View {
                 #endif
             }.padding(.top, 16)
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("订阅")
         .toolbar { Button("刷新") { Task { await model.reload() } }.accessibilityIdentifier("subscriptions.refresh") }

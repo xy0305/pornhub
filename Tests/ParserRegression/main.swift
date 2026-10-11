@@ -5,6 +5,36 @@ struct PHParserRegression {
     static func main() {
         do {
             try PHFixtureCheck.run()
+            let qualityRows: [[String: Any]] = [
+                ["format": "hls", "quality": "360", "defaultQuality": true, "videoUrl": "https://media.example/360"],
+                ["format": "hls", "quality": "1080p", "videoUrl": "https://media.example/1080"],
+                ["format": "hls", "quality": "720", "videoUrl": "https://media.example/720"],
+                ["format": "hls", "quality": "2160", "videoUrl": "javascript:invalid"],
+                ["format": "hls", "videoUrl": "https://media.example/auto"]
+            ]
+            let qualities = PHParser.qualities(from: qualityRows)
+            precondition(qualities.map(\.height) == [1080, 720, 360, 0])
+            precondition(qualities.last?.label == "自动")
+            precondition(PHParser.qualities(from: nil).isEmpty)
+            precondition(PHQualityPolicy.ranked(Array(qualities.reversed())).first?.height == 1080)
+            precondition(PHQualityPolicy.ranked(qualities + qualities).count == 4)
+            var intent = PHQualitySelection()
+            precondition(intent.update(qualities, videoID: "a") == 0)
+            intent.choose(qualities[2])
+            precondition(intent.update(qualities, videoID: "a") == 2)
+            var refreshed = qualities
+            refreshed[2].url = URL(string: "https://media.example/renewed360")!
+            precondition(intent.update(refreshed, videoID: "a") == 2)
+            precondition(intent.update([], videoID: "a") == nil)
+            precondition(intent.update(refreshed, videoID: "a") == 2)
+            precondition(intent.update(refreshed, videoID: "b") == 0)
+            precondition(!intent.manual)
+            var missing = PHQualitySelection()
+            precondition(missing.update([], videoID: "c") == nil)
+            precondition(missing.update([qualities.last!], videoID: "c") == 0)
+            precondition(missing.update(qualities, videoID: "c") == 0)
+            precondition(missing.selected?.height == 1080)
+            print("Highest-quality ranking, missing metadata, invalid URL, signed URL refresh and manual intent passed")
             let root = ProcessInfo.processInfo.environment["PH_FIXTURES"]!
             for (name, href, codes, sources) in [
                 ("model", "/model/lovely-asuna/videos", ["", "mv", "tr", "lg"], 1),

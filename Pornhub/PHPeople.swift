@@ -33,6 +33,8 @@ struct PHCategoryGrid: View {
             .padding(PHLayout.gutter)
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("分类")
         .task { await model.load() }
@@ -71,7 +73,7 @@ struct PHPerformerGrid: View {
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 20)], spacing: 16) {
                 ForEach(model.items) { item in
                     Button {
                         path.append(PHRoute.profile(href: item.href, name: item.name))
@@ -88,13 +90,12 @@ struct PHPerformerGrid: View {
                                     }
                                 }
                             Text(item.name)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.subheadline.weight(.semibold))
                                 .lineLimit(2)
                                 .multilineTextAlignment(.center)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .top)
-                        .phCard()
                     }
                     .buttonStyle(.plain)
                 }
@@ -102,6 +103,8 @@ struct PHPerformerGrid: View {
             .padding(PHLayout.gutter)
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(title)
         .task { await model.load() }
@@ -154,6 +157,7 @@ struct PHProfileView: View {
                                     .foregroundStyle(Color(red: 0.25, green: 0.55, blue: 1))
                             }
                         }
+                        ViewThatFits(in: .horizontal) {
                         HStack(spacing: 14) {
                             if let rank = model.profile?.rank, !rank.isEmpty {
                                 stat(rank, "排名")
@@ -165,10 +169,15 @@ struct PHProfileView: View {
                                 stat(subscribers, "订阅者")
                             }
                         }
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let views = model.profile?.views, !views.isEmpty { stat(views, "次观看") }
+                            if let subscribers = model.profile?.subscribers, !subscribers.isEmpty { stat(subscribers, "订阅者") }
+                        }
+                        }
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                .padding(16)
+                .padding(20)
                 .phCard()
                 .padding(.horizontal, PHLayout.gutter)
                 Button {
@@ -215,7 +224,7 @@ struct PHProfileView: View {
                                 }
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(PHFilterButtonStyle())
                         .frame(minHeight: 44)
                         .padding(.horizontal, 16)
                     }
@@ -250,6 +259,8 @@ struct PHProfileView: View {
             }
             .padding(.top, 12)
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)

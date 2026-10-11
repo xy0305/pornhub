@@ -9,7 +9,7 @@ struct PHGIFGrid: View {
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.reload() } }
             }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 8) {
                 ForEach(model.items) { item in
                     Button { path.append(PHRoute.gif(item)) } label: {
                         ZStack(alignment: .bottomLeading) {
@@ -25,6 +25,8 @@ struct PHGIFGrid: View {
             .padding(10)
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("动图")
         .task { await model.reload() }
@@ -74,6 +76,8 @@ struct PHGIFPlayer: View {
                 Text(gif.title).font(.system(size: 18, weight: .bold)).padding(.horizontal, 16)
             }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("动图")
         .navigationBarTitleDisplayMode(.inline)
@@ -88,7 +92,7 @@ struct PHAlbumGrid: View {
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 16)], spacing: 10) {
                 ForEach(model.items) { item in
                     Button { path.append(PHRoute.album(item)) } label: {
                         VStack(alignment: .leading, spacing: 6) {
@@ -105,6 +109,8 @@ struct PHAlbumGrid: View {
             .padding(12)
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("照片")
         .task { await model.load() }
@@ -139,7 +145,7 @@ struct PHAlbumView: View {
             if let message = model.error, model.photos.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 8)], spacing: 4) {
                 ForEach(model.photos) { photo in
                     Button { path.append(PHRoute.photo(photo)) } label: {
                         PHRemoteImage(url: photo.thumb, ratio: 1)
@@ -149,6 +155,8 @@ struct PHAlbumView: View {
             }
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(album.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -186,6 +194,8 @@ struct PHPhotoView: View {
             }
             if let error { Text(error).foregroundStyle(PHTheme.secondary).padding() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("照片")
         .navigationBarTitleDisplayMode(.inline)
@@ -223,6 +233,8 @@ struct PHPlaylistGrid: View {
             .padding(.vertical, 12)
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle("片单")
         .task { await model.load() }
@@ -269,6 +281,8 @@ struct PHPlaylistView: View {
             }
             if model.loading { PHLoading() }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(playlist.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -352,7 +366,9 @@ struct PHAccountSheet: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(PHTheme.background)
+            .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
+        .background(PHTheme.background)
         }
         .preferredColorScheme(.dark)
     }
@@ -396,7 +412,7 @@ struct PHSavedList: View {
     var body: some View {
         ScrollView {
             if videos.isEmpty {
-                ContentUnavailableView("还没有内容", systemImage: "heart", description: Text("播放或点赞后会出现在这里"))
+                PHEmptyState(title: "还没有内容", icon: "heart", message: "播放或点赞后会出现在这里")
                     .padding(.top, 80)
             }
             LazyVStack(spacing: 12) {
@@ -409,6 +425,8 @@ struct PHSavedList: View {
                 }
             }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .navigationTitle(title)
     }

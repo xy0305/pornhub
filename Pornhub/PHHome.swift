@@ -8,7 +8,7 @@ struct PHHomeView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
+            LazyVStack(alignment: .leading, spacing: 24) {
                 titleRow
                 if !model.chips.isEmpty {
                     PHChipRow(chips: model.chips) { chip in
@@ -18,6 +18,7 @@ struct PHHomeView: View {
                 if let message = model.error, model.videos.isEmpty {
                     PHErrorBanner(message: message) { Task { await model.reload() } }
                 }
+                LazyVGrid(columns: PHLayout.columns, spacing: 24) {
                 ForEach(model.videos) { video in
                     Button {
                         library.remember(video)
@@ -32,12 +33,15 @@ struct PHHomeView: View {
                         }
                     }
                 }
+                }
                 if model.loadingMore || (model.loading && model.videos.isEmpty) {
                     PHLoading()
                 }
             }
             .padding(.bottom, 28)
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .background(PHTheme.background)
         .refreshable { await model.reload() }
         .task { await model.loadIfNeeded() }
@@ -57,10 +61,15 @@ struct PHHomeView: View {
                     Spacer(minLength: 0)
                     PHLogo().accessibilityLabel("Pornhub")
                     Spacer(minLength: 0)
+                    iconButton("heart", color: .white) { path.append(PHRoute.subscriptions) }
+                        .accessibilityLabel("订阅")
                     iconButton("person.crop.circle", color: .white) { present(.account) }
                         .accessibilityLabel("账号")
                         .accessibilityIdentifier("home.account")
                 }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .phGlass(radius: 28)
                 HStack(spacing: 10) {
                     Button { present(.search) } label: {
                         HStack(spacing: 10) {
@@ -75,11 +84,11 @@ struct PHHomeView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("home.search")
-                    iconButton("heart", color: .white) { path.append(PHRoute.subscriptions) }
-                        .accessibilityLabel("订阅")
                 }
             }
         }
+        .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, PHLayout.gutter)
         .padding(.vertical, 10)
     }
@@ -87,11 +96,10 @@ struct PHHomeView: View {
     private var titleRow: some View {
         HStack(spacing: 8) {
             Text("热门色情视频")
-                .font(.title2.bold())
-            Circle()
-                .fill(Color.blue)
-                .frame(width: 16, height: 16)
-                .overlay(Image(systemName: "globe").font(.system(size: 9, weight: .bold)).foregroundStyle(.white).allowsHitTesting(false))
+                .font(.title2.weight(.bold))
+            Text("精选发现")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(PHTheme.secondary)
             Spacer()
         }
         .padding(.horizontal, PHLayout.gutter)
@@ -105,7 +113,6 @@ struct PHHomeView: View {
                 .foregroundStyle(color)
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
-                .phGlass(radius: 22, interactive: true)
         }
         .buttonStyle(.plain)
     }
@@ -140,7 +147,13 @@ final class PHHomeModel: ObservableObject {
 
     func loadIfNeeded() async {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-PHInteractionFixtures") { return }
+        if ProcessInfo.processInfo.arguments.contains("-PHInteractionFixtures") {
+            videos = (1...6).map { index in
+                PHVideo(vkey: "design-fixture-\(index)", videoID: "", title: "Fixture · 原生视频卡片 \(index)", thumb: "fixture://thumbnail/\(index)", preview: "", duration: "12:34", views: "24.8K", author: "Fixture Studio", authorURL: "/model/fixture/videos", verified: true)
+            }
+            chips = [PHChip(title: "精选", href: "/video", systemImage: "sparkles"), PHChip(title: "最新", href: "/video?o=mr", systemImage: nil)]
+            return
+        }
         #endif
         guard videos.isEmpty, !loading else { return }
         await reload()
@@ -218,7 +231,9 @@ struct PHMenuView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(PHTheme.background)
+            .frame(maxWidth: 1200)
+        .frame(maxWidth: .infinity)
+        .background(PHTheme.background)
             .navigationTitle("菜单")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

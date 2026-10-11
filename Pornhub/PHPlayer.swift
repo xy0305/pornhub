@@ -1,12 +1,15 @@
 import SwiftUI
 import AVFoundation
+import AVKit
+import MediaPlayer
 import KSPlayer
 
 struct PHPlayer: View {
     let qualities: [PHQuality]
+    var videoID: String = ""
 
     var body: some View {
-        PHPlayerHost(qualities: qualities)
+        PHPlayerHost(qualities: qualities, videoID: videoID)
             .aspectRatio(16.0 / 9.0, contentMode: .fit)
             .background(Color.black)
     }
@@ -17,13 +20,14 @@ struct PHPlayer: View {
 /// KSVideoPlayer representable sharing a Coordinator (whose dismantle resets it).
 private struct PHPlayerHost: UIViewControllerRepresentable {
     let qualities: [PHQuality]
+    let videoID: String
 
     func makeUIViewController(context: Context) -> PHPlaybackController {
         PHPlaybackController()
     }
 
     func updateUIViewController(_ controller: PHPlaybackController, context: Context) {
-        controller.configure(qualities: qualities)
+        controller.configure(qualities: qualities, videoID: videoID)
     }
 
     static func dismantleUIViewController(_ controller: PHPlaybackController, coordinator: ()) {
@@ -34,6 +38,7 @@ private struct PHPlayerHost: UIViewControllerRepresentable {
 private final class PHPlaybackController: UIViewController {
     private let player = PHNativePlayerView(frame: .zero)
     private var qualities: [PHQuality] = []
+    private var selection = PHQualitySelection()
     private var playerConstraints: [NSLayoutConstraint] = []
     private var fullscreenController: PHLandscapeController?
     private var transitioning = false
@@ -53,20 +58,29 @@ private final class PHPlaybackController: UIViewController {
         try? AVAudioSession.sharedInstance().setActive(true)
     }
 
-    func configure(qualities: [PHQuality]) {
+    func configure(qualities input: [PHQuality], videoID: String) {
         loadViewIfNeeded()
-        guard !disposed, self.qualities != qualities else { return }
+        let qualities = PHQualityPolicy.ranked(input)
+        let sameVideo = selection.videoID == videoID
+        guard !disposed, self.qualities != qualities || !sameVideo else { return }
         self.qualities = qualities
-        guard !qualities.isEmpty else {
-            player.resetPlayer()
-            player.playerLayer = nil
+        let preferred = selection.update(qualities, videoID: videoID)
+        player.qualitySelected = { [weak self] index in
+            guard let self, self.qualities.indices.contains(index) else { return }
+            self.selection.choose(self.qualities[index])
+        }
+        guard let preferred else {
+            // A temporary empty metadata refresh must not destroy active playback.
+            if !sameVideo {
+                player.resetPlayer()
+                player.playerLayer = nil
+            }
             return
         }
         let definitions = qualities.map { quality in
             KSPlayerResourceDefinition(url: quality.url, definition: quality.label, options: playbackOptions())
         }
-        let preferred = qualities.firstIndex(where: { $0.isDefault }) ?? 0
-        player.set(resource: KSPlayerResource(name: "", definitions: definitions), definitionIndex: preferred)
+        player.replaceResource(KSPlayerResource(name: "", definitions: definitions), index: preferred, preservingPosition: sameVideo)
         player.playerLayer?.player.contentMode = .scaleAspectFit
         player.setFullscreenControls(fullscreenController != nil)
     }
@@ -77,6 +91,7 @@ private final class PHPlaybackController: UIViewController {
         options.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
         options.referer = "https://cn.pornhub.com/"
         KSOptions.isAutoPlay = true
+        KSOptions.canBackgroundPlay = true
         return options
     }
 
@@ -138,6 +153,7 @@ private final class PHPlaybackController: UIViewController {
         disposed = true
         player.fullscreenAction = nil
         player.backBlock = nil
+        player.playerLayer?.player.pipController?.stopPictureInPicture()
         player.resetPlayer()
         player.playerLayer = nil
         fullscreenController?.dismiss(animated: false)
@@ -152,7 +168,15 @@ private final class PHPlaybackController: UIViewController {
 /// its presentation hook: the app owns a scene-aware landscape-only controller.
 private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerDelegate {
     var fullscreenAction: ((Bool) -> Void)?
+    var qualitySelected: ((Int) -> Void)?
     private let progress = PHProgressSlider(frame: .zero)
+    private let systemVolume = MPVolumeView(frame: .zero)
+    private let adjustmentHUD = UILabel()
+    private var hudDismiss: DispatchWorkItem?
+    private var verticalVolume = false
+    private var verticalGesture = false
+    private var adjustmentStart: CGFloat = 0
+    private var translationStart: CGFloat = 0
     private let previewLabel = UILabel()
     private var seekSession = PHSeekSession()
     private var seekTimeout: DispatchWorkItem?
@@ -209,7 +233,120 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
             quality.widthAnchor.constraint(equalToConstant: 132),
             quality.heightAnchor.constraint(equalToConstant: 44)
         ])
+        let pip = toolBar.pipButton
+        toolBar.removeArrangedSubview(pip)
+        pip.removeFromSuperview()
+        pip.removeTarget(nil, action: nil, for: .allEvents)
+        pip.addTarget(self, action: #selector(togglePictureInPicture), for: .touchUpInside)
+        pip.accessibilityIdentifier = "player.pip"
+        pip.accessibilityLabel = "画中画"
+        pip.backgroundColor = UIColor.black.withAlphaComponent(0.68)
+        pip.layer.cornerRadius = 12
+        addSubview(pip)
+        pip.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            pip.trailingAnchor.constraint(equalTo: quality.leadingAnchor, constant: -10),
+            pip.topAnchor.constraint(equalTo: quality.topAnchor),
+            pip.widthAnchor.constraint(equalToConstant: 44),
+            pip.heightAnchor.constraint(equalToConstant: 44)
+        ])
+        systemVolume.frame = CGRect(x: -120, y: 0, width: 100, height: 44)
+        systemVolume.alpha = 0.01
+        systemVolume.isUserInteractionEnabled = false
+        addSubview(systemVolume)
+        adjustmentHUD.textAlignment = .center
+        adjustmentHUD.font = .systemFont(ofSize: 16, weight: .semibold)
+        adjustmentHUD.textColor = .white
+        adjustmentHUD.backgroundColor = UIColor.black.withAlphaComponent(0.8)
+        adjustmentHUD.layer.cornerRadius = 14
+        adjustmentHUD.clipsToBounds = true
+        adjustmentHUD.isUserInteractionEnabled = false
+        adjustmentHUD.isHidden = true
+        addSubview(adjustmentHUD)
+        adjustmentHUD.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            adjustmentHUD.centerXAnchor.constraint(equalTo: centerXAnchor),
+            adjustmentHUD.centerYAnchor.constraint(equalTo: centerYAnchor),
+            adjustmentHUD.widthAnchor.constraint(equalToConstant: 250),
+            adjustmentHUD.heightAnchor.constraint(equalToConstant: 52)
+        ])
         setFullscreenControls(false)
+    }
+
+    @objc private func togglePictureInPicture() {
+        guard AVPictureInPictureController.isPictureInPictureSupported(),
+              let layer = playerLayer, let pip = layer.player.pipController else {
+            showHUD("此设备或当前视频不支持画中画")
+            return
+        }
+        if pip.isPictureInPictureActive {
+            pip.stopPictureInPicture()
+        } else if pip.isPictureInPicturePossible {
+            // Use public AVKit directly. KSPlayer's isPipActive=true helper
+            // invokes UIApplication suspend; do not use that non-public path.
+            pip.delegate = layer
+            pip.startPictureInPicture()
+        } else {
+            showHUD("视频就绪后可开启画中画")
+        }
+    }
+
+    private func showHUD(_ text: String) {
+        hudDismiss?.cancel()
+        adjustmentHUD.text = text
+        adjustmentHUD.isHidden = false
+        bringSubviewToFront(adjustmentHUD)
+        let work = DispatchWorkItem { [weak self] in self?.adjustmentHUD.isHidden = true }
+        hudDismiss = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6, execute: work)
+    }
+
+    private var publicVolumeSlider: UISlider? {
+        systemVolume.subviews.compactMap { $0 as? UISlider }.first
+    }
+
+    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer === panGesture else { return true }
+        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return false }
+        let velocity = panGesture.velocity(in: self)
+        let translation = panGesture.translation(in: self)
+        guard max(abs(translation.x), abs(translation.y)) >= 6 else { return false }
+        return abs(velocity.x) > abs(velocity.y) || landscapeButton.isSelected
+    }
+
+    override func panGestureBegan(location point: CGPoint, direction: KSPanDirection) {
+        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return }
+        verticalGesture = direction == .vertical && landscapeButton.isSelected
+        if verticalGesture {
+            verticalVolume = point.x >= bounds.width / 2
+            adjustmentStart = verticalVolume ? CGFloat(publicVolumeSlider?.value ?? 0) : UIScreen.main.brightness
+            translationStart = panGesture.translation(in: self).y
+        } else {
+            super.panGestureBegan(location: point, direction: direction)
+        }
+    }
+
+    override func panGestureChanged(velocity point: CGPoint, direction: KSPanDirection) {
+        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return }
+        if verticalGesture {
+            let delta = (translationStart - panGesture.translation(in: self).y) / max(180, bounds.height * 0.8)
+            let value = min(1, max(0, adjustmentStart + delta))
+            if verticalVolume {
+                guard let slider = publicVolumeSlider else { showHUD("请使用设备音量按键"); return }
+                slider.setValue(Float(value), animated: false)
+                slider.sendActions(for: .valueChanged)
+            } else {
+                UIScreen.main.brightness = value
+            }
+            showHUD("\(verticalVolume ? "音量" : "亮度") · \(Int(value * 100))%")
+        } else {
+            super.panGestureChanged(velocity: point, direction: direction)
+        }
+    }
+
+    override func panGestureEnded() {
+        if !verticalGesture { super.panGestureEnded() }
+        verticalGesture = false
     }
 
     private func configureProgress() {
@@ -292,7 +429,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
             if view is UIControl { return false }
             ancestor = view.superview
         }
-        return !seekSession.blocksProgress
+        return !seekSession.blocksProgress && pendingQualitySeek == nil
     }
 
     override func judgePanGesture() {
@@ -428,8 +565,13 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     override func change(definitionIndex: Int) {
         guard let resource, resource.definitions.indices.contains(definitionIndex),
               definitionIndex != currentDefinition else { return }
-        let resume = toolBar.playButton.isSelected
-        let time = playerLayer?.player.currentPlaybackTime ?? 0
+        qualitySelected?(definitionIndex)
+        replaceResource(resource, index: definitionIndex, preservingPosition: true)
+    }
+
+    func replaceResource(_ resource: KSPlayerResource, index definitionIndex: Int, preservingPosition: Bool) {
+        let resume = preservingPosition ? toolBar.playButton.isSelected : true
+        let time = preservingPosition ? (playerLayer?.player.currentPlaybackTime ?? 0) : 0
         progressCancelled()
         // IOSVideoPlayerView.change awaits thumbnailImageAtCurrentTime BEFORE
         // switching URL. A stuck decoder/network can strand that Task forever.
@@ -470,7 +612,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         toolBar.audioSwitchButton.isHidden = true
         toolBar.videoSwitchButton.isHidden = true
         toolBar.srtButton.isHidden = true
-        toolBar.pipButton.isHidden = true
+        toolBar.pipButton.isHidden = false
         isMaskShow = true
         refreshQualityMenu()
     }

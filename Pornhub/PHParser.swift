@@ -134,19 +134,19 @@ enum PHParser {
     static func qualities(from value: Any?) -> [PHQuality] {
         guard let rows = value as? [[String: Any]] else { return [] }
         var items: [PHQuality] = []
-        var seen = Set<String>()
         for row in rows {
             guard string(row["format"]) == "hls", let raw = string(row["videoUrl"]), let url = URL(string: raw) else { continue }
-            let label = string(row["quality"]).flatMap { $0.isEmpty ? nil : $0 } ?? "\(int(row["height"]) ?? 0)"
-            guard !label.isEmpty, label != "0", seen.insert(label).inserted else { continue }
+            let rawQuality = string(row["quality"]) ?? ""
+            let numeric = Int(rawQuality.hasSuffix("p") ? String(rawQuality.dropLast()) : rawQuality) ?? 0
+            let height = max(0, int(row["height"]) ?? numeric)
             items.append(PHQuality(
-                label: label + "p",
-                height: int(row["height"]) ?? Int(label) ?? 0,
+                label: height > 0 ? "\(height)p" : "自动",
+                height: height,
                 url: url,
                 isDefault: bool(row["defaultQuality"])
             ))
         }
-        return items.sorted { $0.height > $1.height }
+        return PHQualityPolicy.ranked(items)
     }
 
     static func categoryPills(in html: String) -> [PHChip] {

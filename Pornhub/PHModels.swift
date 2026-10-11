@@ -33,11 +33,58 @@ enum PHAuthorKind: String, Codable {
 }
 
 struct PHQuality: Identifiable, Hashable, Codable {
-    var id: String { label }
+    var id: String { url.absoluteString }
     var label: String
     var height: Int
     var url: URL
     var isDefault: Bool
+}
+
+/// Resolution comes from source metadata, never from a site default flag.
+/// Unknown/adaptive sources remain usable, but never claim a made-up resolution.
+enum PHQualityPolicy {
+    static func ranked(_ qualities: [PHQuality]) -> [PHQuality] {
+        var seen = Set<URL>()
+        return qualities.filter {
+            ["http", "https"].contains($0.url.scheme?.lowercased() ?? "") &&
+            $0.url.host?.isEmpty == false && seen.insert($0.url).inserted
+        }.enumerated().sorted {
+            let lhs = max(0, $0.element.height), rhs = max(0, $1.element.height)
+            return lhs == rhs ? $0.offset < $1.offset : lhs > rhs
+        }.map(\.element)
+    }
+}
+
+/// Per-player intent survives signed-URL refresh and temporary empty metadata.
+struct PHQualitySelection {
+    private(set) var videoID: String?
+    private(set) var selected: PHQuality?
+    private(set) var manual = false
+
+    mutating func choose(_ quality: PHQuality) {
+        selected = quality
+        manual = true
+    }
+
+    mutating func update(_ qualities: [PHQuality], videoID: String) -> Int? {
+        if self.videoID != videoID {
+            self.videoID = videoID
+            selected = nil
+            manual = false
+        }
+        guard !qualities.isEmpty else { return nil }
+        let index: Int
+        if manual, let selected {
+            // Keep exact source first, then the same real resolution on URL renewal.
+            index = qualities.firstIndex { $0.url == selected.url } ??
+                qualities.firstIndex { $0.height == selected.height && $0.label == selected.label } ??
+                (manual ? (qualities.firstIndex { $0.height <= selected.height } ?? 0) : 0)
+        } else {
+            index = 0
+        }
+        selected = qualities[index]
+        return index
+    }
 }
 
 struct PHVideoDetail: Hashable {
