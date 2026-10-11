@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Value-only pan state, shared by UIKit and executable regression tests.
 struct PHAdjustmentPan {
