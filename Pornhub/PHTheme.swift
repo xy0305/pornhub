@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum PHTheme {
-    static let background = Color(red: 0.035, green: 0.035, blue: 0.04)
-    static let elevated = Color(red: 0.12, green: 0.12, blue: 0.12)
-    static let card = Color(red: 0.16, green: 0.16, blue: 0.16)
+    static let background = Color(red: 0.065, green: 0.052, blue: 0.048)
+    static let elevated = Color(red: 0.115, green: 0.098, blue: 0.088)
+    static let card = Color(red: 0.18, green: 0.15, blue: 0.125)
     static let orange = Color(red: 1.0, green: 0.55, blue: 0.0)
     static let text = Color.white
     static let secondary = Color(white: 0.72)
@@ -13,8 +13,8 @@ enum PHTheme {
 
 // Shared visual tokens; content surfaces stay opaque for readable media/text.
 enum PHLayout {
-    static let gutter: CGFloat = 16
-    static let radius: CGFloat = 16
+    static let gutter: CGFloat = 20
+    static let radius: CGFloat = 20
     static let columns = [GridItem(.adaptive(minimum: 300, maximum: 560), spacing: 20)]
     static let controlHeight: CGFloat = 44
 }

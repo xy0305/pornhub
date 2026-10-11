@@ -6,6 +6,7 @@ struct PHCategoryGrid: View {
 
     var body: some View {
         ScrollView {
+            PHSectionHeading(title: "按兴趣探索", subtitle: "选择分类，查看对应视频", icon: "square.grid.2x2.fill")
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
@@ -18,9 +19,9 @@ struct PHCategoryGrid: View {
                             PHRemoteImage(url: item.thumb, ratio: 16.0 / 10.0)
                             LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .center, endPoint: .bottom)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(item.title).font(.system(size: 16, weight: .bold))
+                                Text(item.title).font(.headline)
                                 if !item.count.isEmpty {
-                                    Text("\(item.count) 视频").font(.system(size: 12)).foregroundStyle(PHTheme.secondary)
+                                    Text("\(item.count) 视频").font(.caption).foregroundStyle(PHTheme.secondary)
                                 }
                             }
                             .padding(10)
@@ -70,6 +71,7 @@ struct PHPerformerGrid: View {
 
     var body: some View {
         ScrollView {
+            PHSectionHeading(title: "发现喜爱的明星", subtitle: "打开主页，浏览作者作品", icon: "star.fill")
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
@@ -78,7 +80,7 @@ struct PHPerformerGrid: View {
                     Button {
                         path.append(PHRoute.profile(href: item.href, name: item.name))
                     } label: {
-                        VStack(spacing: 6) {
+                        VStack(spacing: 12) {
                             PHRemoteImage(url: item.avatar, ratio: 1)
                                 .clipShape(Circle())
                                 .overlay(alignment: .topLeading) {
@@ -96,6 +98,7 @@ struct PHPerformerGrid: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .top)
+                        .phCard()
                     }
                     .buttonStyle(.plain)
                 }
@@ -143,15 +146,18 @@ struct PHProfileView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("作者 / CREATOR")
+                        .font(.caption.weight(.bold)).tracking(2).foregroundStyle(PHTheme.orange)
+                    HStack(alignment: .top, spacing: 16) {
                     PHRemoteImage(url: model.profile?.avatar ?? "", ratio: 1)
-                        .frame(width: 84, height: 84)
+                        .frame(width: 76, height: 76)
                         .clipShape(Circle())
                     VStack(alignment: .leading, spacing: 4) {
                         HStack(spacing: 6) {
                             Text(model.profile?.name.isEmpty == false ? model.profile!.name : name)
-                                .font(.system(size: 22, weight: .bold))
+                                .font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
                             if model.profile?.videos.first?.verified == true || model.subscribed {
                                 Image(systemName: "checkmark.seal.fill")
                                     .foregroundStyle(Color(red: 0.25, green: 0.55, blue: 1))
@@ -176,6 +182,7 @@ struct PHProfileView: View {
                         }
                     }
                     Spacer(minLength: 0)
+                    }
                 }
                 .padding(20)
                 .phCard()
@@ -196,9 +203,9 @@ struct PHProfileView: View {
                     Text(message).font(.footnote).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
                 }
                 if let about = model.profile?.about, !about.isEmpty {
-                    Text(about).font(.system(size: 14)).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
+                    Text(about).font(.subheadline).foregroundStyle(PHTheme.secondary).padding(.horizontal, 16)
                 }
-                Text("作者视频").font(.headline).padding(.horizontal, 16)
+                PHSectionHeading(title: "作者作品", subtitle: "使用下方筛选浏览视频", icon: "play.rectangle.fill")
                 if !model.sorts.isEmpty || !model.sources.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -276,8 +283,8 @@ struct PHProfileView: View {
 
     private func stat(_ value: String, _ label: String) -> some View {
         VStack(spacing: 1) {
-            Text(value).font(.system(size: 14, weight: .bold))
-            Text(label).font(.system(size: 11)).foregroundStyle(PHTheme.secondary)
+            Text(value).font(.subheadline.weight(.bold))
+            Text(label).font(.caption).foregroundStyle(PHTheme.secondary)
         }
     }
 }

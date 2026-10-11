@@ -41,6 +41,14 @@ checks = {
  'dark appearance': '.preferredColorScheme(.dark)' in read('PornhubApp.swift'),
  'no web renderer': not any(re.search(r'\b(WKWebView|UIWebView|SFSafariViewController|import WebKit)\b', x.read_text()) for x in (r/'Pornhub').glob('*.swift')),
 }
+checks.update({
+ 'editorial discovery': 'home.discovery' in h and '找到你的精彩' in h,
+ 'functional shortcut routes': all(x in h for x in ['route: .categoryGrid', 'route: .performerGrid', 'route: .history']),
+ 'unified section typography': 'struct PHSectionHeading' in read('PHComponents.swift') and 'PHSectionHeading' in p and 'PHSectionHeading' in m and 'PHSectionHeading' in b,
+ 'light content card, not glass': '.phCard()' in read('PHComponents.swift') and '.phGlass(' not in read('PHComponents.swift'),
+ 'single detail fixture isolation': '#if DEBUG' in b and 'video.vkey.hasPrefix("design-fixture-")' in b,
+ 'dynamic section type': '.font(.title2.weight(.bold))' in read('PHComponents.swift'),
+})
 for n,d in {'PHPlayer.swift':'1c4599309cd4ac0ee702c757dc56cb341bc39ce7a0963e9097d4fbab684efed7','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
  checks[('build10 audited player ' if n == 'PHPlayer.swift' else 'build5 unchanged seek ')+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
 for n,ok in checks.items(): print(('PASS: ' if ok else 'FAIL: ')+n)

@@ -85,9 +85,7 @@ struct PHServerSubscriptionsView: View {
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                Text("官网订阅更新").font(.headline)
-                Text("来自 /subscriptions 的订阅视频，不是本地作者缓存")
-                    .font(.caption).foregroundStyle(PHTheme.secondary)
+                PHSectionHeading(title: "关注的精彩", subtitle: "官网订阅更新 · 来自 /subscriptions", icon: "heart.fill")
                 if let error = model.error {
                     PHErrorBanner(message: error) { Task { await model.retry() } }
                         .accessibilityIdentifier("subscriptions.error")

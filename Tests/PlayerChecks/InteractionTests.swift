@@ -19,7 +19,7 @@ final class InteractionTests: XCTestCase {
         let app = launch()
         let menu = app.buttons["home.menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 15))
-        capture("Build9-home")
+        capture("Build11-home")
         menu.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.25)).tap()
         XCTAssertTrue(app.navigationBars["菜单"].waitForExistence(timeout: 5))
         app.buttons["关闭"].tap()
@@ -38,13 +38,55 @@ final class InteractionTests: XCTestCase {
         XCTAssertFalse(app.navigationBars["菜单"].exists)
     }
 
+    func testDiscoveryQuickLinksAccountAndNativeDetail() {
+        let app = launch()
+        let history = app.buttons["home.quick.history"]
+        XCTAssertTrue(history.waitForExistence(timeout: 15))
+        XCTAssertGreaterThanOrEqual(history.frame.height, 44)
+        history.tap()
+        XCTAssertTrue(app.navigationBars["观看记录"].waitForExistence(timeout: 5))
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["home.account"].tap()
+        XCTAssertTrue(app.secureTextFields["密码"].waitForExistence(timeout: 5))
+        capture("Build11-account")
+        app.buttons["完成"].tap()
+        let card = app.buttons["home.video.design-fixture-1"]
+        if !card.isHittable { app.swipeUp() }
+        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        capture("Build11-home-content")
+        card.tap()
+        XCTAssertTrue(app.buttons["player.quality"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["点赞"].waitForExistence(timeout: 5))
+        capture("Build11-detail")
+        app.buttons["点赞"].tap()
+        XCTAssertTrue(app.buttons["取消点赞"].exists)
+        app.buttons["取消点赞"].tap()
+    }
+
+    func testLargeTypeDiscoveryRemainsScrollableAndAccountReachable() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-PHInteractionFixtures", "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        app.launch()
+        let menu = app.buttons["home.menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 15))
+        XCTAssertGreaterThanOrEqual(menu.frame.height, 44)
+        let account = app.buttons["home.account"]
+        XCTAssertTrue(account.isHittable)
+        XCTAssertLessThanOrEqual(account.frame.maxX, app.frame.maxX)
+        capture("Build11-home-accessibilityXXXL")
+        app.swipeUp()
+        account.tap()
+        XCTAssertTrue(app.buttons["完成"].waitForExistence(timeout: 5))
+        app.buttons["完成"].tap()
+    }
+
     func testProfileSortRequestsPagingStaleResponsesAndRetry() {
         let app = XCUIApplication()
         app.launchArguments = ["-PHProfileFixture"]
         app.launch()
         let latest = app.buttons["profile.sort.最新"]
         XCTAssertTrue(latest.waitForExistence(timeout: 15))
-        capture("Build9-author")
+        capture("Build11-author")
         let request = app.staticTexts["profile.request"]
         func requestContains(_ value: String) {
             expectation(for: NSPredicate(format: "label CONTAINS %@", value), evaluatedWith: request)
@@ -125,7 +167,7 @@ final class InteractionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(pip.frame.height, 44)
         pip.tap()
         XCTAssertTrue(app.staticTexts["视频就绪后可开启画中画"].exists || app.staticTexts["此设备或当前视频不支持画中画"].exists)
-        capture("Build9-player")
+        capture("Build11-player")
         app.buttons["横屏播放"].tap()
         XCTAssertTrue(app.buttons["退出横屏"].waitForExistence(timeout: 10))
         let back = app.buttons["player.back"]
@@ -193,7 +235,7 @@ extension InteractionTests {
         let volumeOutput = hud.value as? String ?? ""
         XCTAssertFalse(volumeOutput.contains("volume=0.5;"))
         XCTAssertFalse(volumeOutput.hasSuffix("events=0"), "Production UISlider valueChanged submission reaches adapter")
-        capture("Build10-adjustment-synthetic-output-not-system-volume")
+        capture("Build11-adjustment-synthetic-output-not-system-volume")
         drag(0.75, 0.38, 0.64)
         XCTAssertTrue(hud.label.contains("音量"))
         app.buttons["player.back"].tap()

@@ -10,6 +10,10 @@ struct PHHomeView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
                 titleRow
+                searchButton
+                    .padding(.horizontal, PHLayout.gutter)
+                quickLinks
+                PHSectionHeading(title: "热门视频", subtitle: "浏览站点热门内容", icon: "flame.fill")
                 if !model.chips.isEmpty {
                     PHChipRow(chips: model.chips) { chip in
                         open(chip)
@@ -27,6 +31,7 @@ struct PHHomeView: View {
                         PHVideoCard(video: video)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("home.video.\(video.vkey)")
                     .onAppear {
                         if video.id == model.videos.last?.id {
                             Task { await model.loadMore() }
@@ -52,58 +57,96 @@ struct PHHomeView: View {
     }
 
     private var header: some View {
-        PHGlassGroup {
-            VStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    iconButton("line.3.horizontal", color: PHTheme.orange) { present(.menu) }
-                        .accessibilityLabel("浏览菜单与取向")
-                        .accessibilityIdentifier("home.menu")
-                    Spacer(minLength: 0)
-                    PHLogo().accessibilityLabel("Pornhub")
-                    Spacer(minLength: 0)
+        HStack(spacing: 10) {
+            iconButton("line.3.horizontal", color: PHTheme.orange) { present(.menu) }
+                .accessibilityLabel("浏览菜单与取向")
+                .accessibilityIdentifier("home.menu")
+            PHLogo().accessibilityLabel("Pornhub")
+            Spacer(minLength: 0)
+            PHGlassGroup {
+                HStack(spacing: 0) {
                     iconButton("heart", color: .white) { path.append(PHRoute.subscriptions) }
                         .accessibilityLabel("订阅")
                     iconButton("person.crop.circle", color: .white) { present(.account) }
                         .accessibilityLabel("账号")
                         .accessibilityIdentifier("home.account")
                 }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 4)
-                .phGlass(radius: 28)
-                HStack(spacing: 10) {
-                    Button { present(.search) } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "magnifyingglass").foregroundStyle(PHTheme.orange)
-                            Text("搜索视频、明星、分类").font(.subheadline).foregroundStyle(PHTheme.secondary)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 16)
-                        .frame(maxWidth: .infinity, minHeight: PHLayout.controlHeight)
-                        .contentShape(Capsule())
-                        .phGlass(radius: 24, interactive: true)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("home.search")
-                }
+                .phGlass(radius: 24)
             }
         }
         .frame(maxWidth: 1200)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, PHLayout.gutter)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
+        .background(PHTheme.background)
+    }
+
+    private var searchButton: some View {
+        Button { present(.search) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass").foregroundStyle(PHTheme.orange)
+                Text("搜索视频、明星、分类")
+                    .font(.subheadline).foregroundStyle(PHTheme.secondary)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right").font(.caption.weight(.semibold))
+                    .foregroundStyle(PHTheme.secondary)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, minHeight: PHLayout.controlHeight)
+            .contentShape(Capsule())
+            .phGlass(radius: 28, interactive: true)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home.search")
     }
 
     private var titleRow: some View {
-        HStack(spacing: 8) {
-            Text("热门色情视频")
-                .font(.title2.weight(.bold))
-            Text("精选发现")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(PHTheme.secondary)
-            Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            Text("发现 / DISCOVER")
+                .font(.caption.weight(.bold)).tracking(2)
+                .foregroundStyle(PHTheme.orange)
+            Text("找到你的精彩")
+                .font(.largeTitle.weight(.bold))
+                .foregroundStyle(PHTheme.text)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("热门内容、喜爱的明星，从这里开始。")
+                .font(.subheadline).foregroundStyle(PHTheme.secondary)
         }
         .padding(.horizontal, PHLayout.gutter)
-        .padding(.top, 8)
+        .padding(.top, 18)
+        .accessibilityIdentifier("home.discovery")
+    }
+
+    private var quickLinks: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { shortcutItems }
+            VStack(spacing: 10) { shortcutItems }
+        }
+        .padding(.horizontal, PHLayout.gutter)
+    }
+
+    @ViewBuilder private var shortcutItems: some View {
+        shortcut("分类", icon: "square.grid.2x2.fill", id: "categories", route: .categoryGrid)
+        shortcut("明星", icon: "star.fill", id: "performers", route: .performerGrid(title: "色情明星", path: "/pornstars"))
+        shortcut("观看记录", icon: "clock.arrow.circlepath", id: "history", route: .history)
+    }
+
+    private func shortcut(_ title: String, icon: String, id: String, route: PHRoute) -> some View {
+        Button { path.append(route) } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title3.weight(.semibold)).foregroundStyle(PHTheme.orange)
+                Text(title).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PHTheme.text).fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
+            .padding(14)
+            .phCard(radius: 18)
+            .contentShape(RoundedRectangle(cornerRadius: 18))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("home.quick.\(id)")
     }
 
     private func iconButton(_ name: String, color: Color, action: @escaping () -> Void) -> some View {

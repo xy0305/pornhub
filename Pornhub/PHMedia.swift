@@ -6,6 +6,7 @@ struct PHGIFGrid: View {
 
     var body: some View {
         ScrollView {
+            PHSectionHeading(title: "捕捉精彩瞬间", subtitle: "浏览动图内容", icon: "sparkles")
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.reload() } }
             }
@@ -14,7 +15,7 @@ struct PHGIFGrid: View {
                     Button { path.append(PHRoute.gif(item)) } label: {
                         ZStack(alignment: .bottomLeading) {
                             PHRemoteImage(url: item.still, ratio: 1)
-                            Text(item.title).font(.system(size: 12, weight: .semibold)).lineLimit(1).padding(8)
+                            Text(item.title).font(.caption.weight(.semibold)).lineLimit(2).padding(10).frame(maxWidth: .infinity, alignment: .leading).background(.black.opacity(0.72))
                         }
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
@@ -22,7 +23,7 @@ struct PHGIFGrid: View {
                     .onAppear { if item.id == model.items.last?.id { Task { await model.loadMore() } } }
                 }
             }
-            .padding(10)
+            .padding(PHLayout.gutter)
             if model.loading { PHLoading() }
         }
         .frame(maxWidth: 1200)
@@ -89,6 +90,7 @@ struct PHAlbumGrid: View {
     @Binding var path: NavigationPath
     var body: some View {
         ScrollView {
+            PHSectionHeading(title: "影像故事", subtitle: "打开相册，查看照片", icon: "square.stack.fill")
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
@@ -97,7 +99,7 @@ struct PHAlbumGrid: View {
                     Button { path.append(PHRoute.album(item)) } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             PHRemoteImage(url: item.thumb, ratio: 1).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            Text(item.title).font(.system(size: 14, weight: .semibold)).lineLimit(2)
+                            Text(item.title).font(.subheadline.weight(.semibold)).lineLimit(2)
                             if !item.photoCount.isEmpty {
                                 Text("\(item.photoCount) 照片").font(.system(size: 12)).foregroundStyle(PHTheme.secondary)
                             }
@@ -212,6 +214,7 @@ struct PHPlaylistGrid: View {
     @Binding var path: NavigationPath
     var body: some View {
         ScrollView {
+            PHSectionHeading(title: "一份片单，多种精彩", subtitle: "浏览站点片单", icon: "rectangle.stack.fill")
             if let message = model.error, model.items.isEmpty {
                 PHErrorBanner(message: message) { Task { await model.load() } }
             }
@@ -220,9 +223,9 @@ struct PHPlaylistGrid: View {
                     Button { path.append(PHRoute.playlist(item)) } label: {
                         VStack(alignment: .leading, spacing: 8) {
                             PHRemoteImage(url: item.thumb).clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            Text(item.title).font(.system(size: 16, weight: .bold)).lineLimit(2)
+                            Text(item.title).font(.headline).lineLimit(2)
                             if !item.models.isEmpty {
-                                Text(item.models).font(.system(size: 13)).foregroundStyle(PHTheme.secondary).lineLimit(1)
+                                Text(item.models).font(.caption).foregroundStyle(PHTheme.secondary).lineLimit(1)
                             }
                         }
                         .padding(.horizontal, 12)
@@ -324,7 +327,7 @@ struct PHAccountSheet: View {
                         Image(systemName: library.account == nil ? "person.crop.circle" : "person.crop.circle.badge.checkmark")
                             .font(.largeTitle).foregroundStyle(PHTheme.orange)
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(library.account == nil ? "欢迎回来" : "账号中心").font(.title2.bold())
+                            Text(library.account == nil ? "你的精彩，由此开始" : "账号中心").font(.title2.bold()).fixedSize(horizontal: false, vertical: true)
                             Text("管理登录与订阅").font(.subheadline).foregroundStyle(PHTheme.secondary)
                         }
                     }

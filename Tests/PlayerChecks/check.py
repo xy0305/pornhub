@@ -25,7 +25,7 @@ checks = {
  'explicit teardown': 'controller.dispose()' in p and 'player.playerLayer = nil' in p,
  'orientation delegate': '@UIApplicationDelegateAdaptor(PHAppDelegate.self)' in a and 'supportedInterfaceOrientationsFor' in a,
  'controller status bar': plistlib.loads((r/'Pornhub/Info.plist').read_bytes())['UIViewControllerBasedStatusBarAppearance'] is True,
- 'build 10': b.count('CURRENT_PROJECT_VERSION = 10;') == 2,
+ 'build 11': b.count('CURRENT_PROJECT_VERSION = 11;') == 2,
  'back removed from upstream stack': 'navigationBar.removeArrangedSubview(backButton)' in p and 'backButton.removeFromSuperview()' in p,
  'back pinned safe top-left': 'backButton.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 12)' in p and 'backButton.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 4)' in p,
  '44pt progress input': 'progress.heightAnchor.constraint(equalToConstant: 44)' in p,

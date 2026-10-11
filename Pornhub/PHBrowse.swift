@@ -30,21 +30,21 @@ struct PHSearchSheet: View {
                         .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     if !searches.isEmpty {
                         Text("热门搜索")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(.title2.bold())
                         ForEach(searches) { item in
                             Button(item.title) {
                                 query = item.title
                                 submit()
                             }
                             .buttonStyle(.plain)
-                            .font(.system(size: 17))
+                            .font(.body)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .frame(minHeight: PHLayout.controlHeight)
                         }
                     }
                     if !performers.isEmpty {
                         Text("热门色情明星和模特")
-                            .font(.system(size: 22, weight: .bold))
+                            .font(.title2.bold())
                         ForEach(performers) { item in
                             Button {
                                 onOpen(.profile(href: item.href, name: item.title))
@@ -55,7 +55,7 @@ struct PHSearchSheet: View {
                                         .frame(width: 64, height: 64)
                                         .clipShape(Circle())
                                     Text(item.title)
-                                        .font(.system(size: 18, weight: .semibold))
+                                        .font(.headline)
                                     Spacer()
                                 }
                             }
@@ -122,7 +122,8 @@ struct PHListingView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: 20) {
+                PHSectionHeading(title: title, subtitle: query == nil ? "按排序浏览视频" : "搜索结果", icon: query == nil ? "play.rectangle.fill" : "magnifyingglass")
                 sortBar
                 if let message = model.error, model.videos.isEmpty {
                     PHErrorBanner(message: message) { Task { await model.reload() } }
@@ -157,7 +158,7 @@ struct PHListingView: View {
                     Button(sort.title) {
                         Task { await model.setSort(sort) }
                     }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .padding(.horizontal, PHLayout.gutter)
                     .frame(minHeight: PHLayout.controlHeight)
                     .accessibilityAddTraits(model.sort == sort ? .isSelected : [])
@@ -262,30 +263,24 @@ struct PHVideoDetailView: View {
                 } else {
                     PHRemoteImage(url: video.thumb)
                 }
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("正在浏览 / VIDEO")
+                        .font(.caption.weight(.bold)).tracking(2).foregroundStyle(PHTheme.orange)
                     Text(model.detail?.video.title ?? video.title)
                         .font(.title2.bold())
-                    HStack(spacing: 12) {
-                        meta(model.detail?.viewsText ?? video.views, "eye")
-                        if let rating = model.detail?.ratingText, !rating.isEmpty {
-                            meta(rating, "hand.thumbsup")
-                        }
-                        if let seconds = model.detail?.durationSeconds, seconds > 0 {
-                            meta(PHParser.duration(seconds), "clock")
+                    ViewThatFits(in: .horizontal) {
+                        detailMetadata
+                        VStack(alignment: .leading, spacing: 8) {
+                            meta(model.detail?.viewsText ?? video.views, "eye")
+                            if let rating = model.detail?.ratingText, !rating.isEmpty { meta(rating, "hand.thumbsup") }
+                            if let seconds = model.detail?.durationSeconds, seconds > 0 { meta(PHParser.duration(seconds), "clock") }
                         }
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(PHTheme.secondary)
+                    .font(.subheadline).foregroundStyle(PHTheme.secondary)
                     PHGlassGroup {
                         ViewThatFits(in: .horizontal) {
-                            HStack(spacing: 12) {
-                                likeButton
-                                authorButton
-                            }
-                            VStack(alignment: .leading, spacing: 12) {
-                                likeButton
-                                authorButton
-                            }
+                            HStack(spacing: 12) { likeButton; authorButton }
+                            VStack(alignment: .leading, spacing: 12) { likeButton; authorButton }
                         }
                     }
                     if let tags = model.detail?.tags, !tags.isEmpty {
@@ -297,20 +292,16 @@ struct PHVideoDetailView: View {
                         PHErrorBanner(message: message) { Task { await model.load() } }
                     }
                 }
-                .padding(16)
+                .padding(20)
                 .phCard()
                 .padding(.horizontal, PHLayout.gutter)
                 if !model.related.isEmpty {
-                    Text("相关视频")
-                        .font(.system(size: 18, weight: .bold))
-                        .padding(.horizontal, PHLayout.gutter)
+                    PHSectionHeading(title: "继续探索", subtitle: "相关视频", icon: "play.rectangle.on.rectangle")
                     ForEach(model.related) { item in
                         Button {
                             library.remember(item)
                             path.append(PHRoute.video(item))
-                        } label: {
-                            PHVideoCard(video: item)
-                        }
+                        } label: { PHVideoCard(video: item) }
                         .buttonStyle(.plain)
                     }
                 }
@@ -321,6 +312,14 @@ struct PHVideoDetailView: View {
         .background(PHTheme.background)
         .navigationBarTitleDisplayMode(.inline)
         .task { await model.load() }
+    }
+
+    private var detailMetadata: some View {
+        HStack(spacing: 12) {
+            meta(model.detail?.viewsText ?? video.views, "eye")
+            if let rating = model.detail?.ratingText, !rating.isEmpty { meta(rating, "hand.thumbsup") }
+            if let seconds = model.detail?.durationSeconds, seconds > 0 { meta(PHParser.duration(seconds), "clock") }
+        }
     }
 
     private var likeButton: some View {
@@ -343,7 +342,7 @@ struct PHVideoDetailView: View {
         } label: {
             HStack(spacing: 8) {
                 Text(current.author.isEmpty ? "作者" : current.author)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.headline)
                 if current.verified {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(Color(red: 0.25, green: 0.55, blue: 1))
@@ -376,6 +375,16 @@ final class PHDetailModel: ObservableObject {
     init(video: PHVideo) { self.video = video }
 
     func load() async {
+        #if DEBUG
+        // Isolated UI evidence only. No live request and no claim of playback.
+        if ProcessInfo.processInfo.arguments.contains("-PHInteractionFixtures"), video.vkey.hasPrefix("design-fixture-") {
+            detail = PHVideoDetail(video: video, qualities: [
+                PHQuality(label: "720p", height: 720, url: URL(string: "http://127.0.0.1:9/detail-fixture.mp4")!, isDefault: true)
+            ], tags: [PHChip(title: "Fixture 分类", href: "/video", systemImage: nil)], viewsText: video.views, ratingText: "", durationSeconds: 754, relatedURL: "")
+            related = []
+            return
+        }
+        #endif
         guard detail == nil, !loading else { return }
         loading = true
         do {

@@ -4,7 +4,7 @@ struct PHVideoCard: View {
     let video: PHVideo
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .bottomTrailing) {
                 PHRemoteImage(url: video.thumb)
                 if !video.duration.isEmpty {
@@ -15,7 +15,8 @@ struct PHVideoCard: View {
                         .padding(10)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: PHLayout.radius, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: PHLayout.radius - 4, style: .continuous))
+            .padding(6)
             VStack(alignment: .leading, spacing: 7) {
                 Text(video.title)
                     .font(.system(.headline, design: .default).weight(.semibold))
@@ -35,9 +36,12 @@ struct PHVideoCard: View {
                 .font(.caption)
                 .foregroundStyle(PHTheme.secondary)
             }
-            .padding(.horizontal, 2)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
         }
-        .padding(.bottom, 8)
+        .phCard()
+        .padding(.bottom, 4)
         .padding(.horizontal, PHLayout.gutter)
         .frame(maxWidth: 560, alignment: .leading)
         .frame(maxWidth: .infinity)
@@ -96,7 +100,7 @@ struct PHScreenHeader<Trailing: View>: View {
     @ViewBuilder var trailing: () -> Trailing
     var body: some View {
         HStack {
-            Text(title).font(.title2.bold())
+            Text(title).font(.title.bold()).fixedSize(horizontal: false, vertical: true)
             Spacer()
             trailing()
         }
@@ -145,5 +149,24 @@ struct PHErrorBanner: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity)
+    }
+}
+
+struct PHSectionHeading: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: icon)
+                .font(.title2.weight(.bold))
+                .foregroundStyle(PHTheme.text)
+            Text(subtitle).font(.subheadline).foregroundStyle(PHTheme.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, PHLayout.gutter)
+        .padding(.top, 12)
+        .accessibilityElement(children: .combine)
     }
 }
