@@ -154,5 +154,13 @@ final class InteractionTests: XCTestCase {
         back.tap()
         XCTAssertTrue(app.buttons["横屏播放"].waitForExistence(timeout: 10))
         XCTAssertEqual(quality.value as? String, "360.mp4")
+        app.buttons["player.fixture.refresh"].tap()
+        expectation(for: NSPredicate(format: "value == %@", "360.mp4"), evaluatedWith: quality)
+        waitForExpectations(timeout: 5)
+        quality.tap()
+        XCTAssertTrue(app.buttons["720p"].waitForExistence(timeout: 5))
+        app.buttons["720p"].tap()
+        expectation(for: NSPredicate(format: "value == %@", "720.mp4"), evaluatedWith: quality)
+        waitForExpectations(timeout: 5)
     }
 }

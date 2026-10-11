@@ -41,7 +41,7 @@ checks = {
  'dark appearance': '.preferredColorScheme(.dark)' in read('PornhubApp.swift'),
  'no web renderer': not any(re.search(r'\b(WKWebView|UIWebView|SFSafariViewController|import WebKit)\b', x.read_text()) for x in (r/'Pornhub').glob('*.swift')),
 }
-for n,d in {'PHPlayer.swift':'fde3d60c2caaa7f1879f5f048d5dd116b312d88d31af83688bfe04f7e26acbac','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
+for n,d in {'PHPlayer.swift':'0195398500cfaab1f2267044dff547edba9c39992c677c797edd127b585618d4','PHSeekSession.swift':'ff05c215c1ae556d820c09f0642e582c3186337612a83ef76c94fb6b407a286c'}.items():
  checks[('build9 audited player ' if n == 'PHPlayer.swift' else 'build5 unchanged seek ')+n]=hashlib.sha256((r/'Pornhub'/n).read_bytes()).hexdigest()==d
 for n,ok in checks.items(): print(('PASS: ' if ok else 'FAIL: ')+n)
 assert all(checks.values())

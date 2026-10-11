@@ -11,10 +11,7 @@ struct PornhubApp: App {
             Group {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("-PHQualityFixture") {
-                    PHPlayer(qualities: [
-                        PHQuality(label: "360p", height: 360, url: URL(string: "http://127.0.0.1:9/360.mp4")!, isDefault: true),
-                        PHQuality(label: "720p", height: 720, url: URL(string: "http://127.0.0.1:9/720.mp4")!, isDefault: false)
-                    ])
+                    PHQualityInteractionFixture()
                 } else if ProcessInfo.processInfo.arguments.contains("-PHProfileFixture") {
                     NavigationStack {
                         PHProfileView(href: "/model/fixture/videos", name: "Fixture Author", path: .constant(NavigationPath()))
@@ -33,6 +30,25 @@ struct PornhubApp: App {
         }
     }
 }
+
+#if DEBUG
+private struct PHQualityInteractionFixture: View {
+    @State private var refreshed = false
+    var body: some View {
+        VStack(spacing: 24) {
+            PHPlayer(qualities: [
+                PHQuality(label: "360p", height: 360, url: URL(string: "http://127.0.0.1:9/360.mp4?revision=\(refreshed ? 1 : 0)")!, isDefault: true),
+                PHQuality(label: "720p", height: 720, url: URL(string: "http://127.0.0.1:9/720.mp4?revision=\(refreshed ? 1 : 0)")!, isDefault: false)
+            ], videoID: "quality-fixture")
+            Button("刷新测试资源") { refreshed.toggle() }
+                .accessibilityIdentifier("player.fixture.refresh")
+                .frame(minHeight: 44)
+            Text("Synthetic fixture · unavailable localhost sources")
+                .font(.caption).foregroundStyle(PHTheme.secondary)
+        }
+    }
+}
+#endif
 
 /// KSPlayer documents this delegate bridge for its orientation mask.
 final class PHAppDelegate: NSObject, UIApplicationDelegate {

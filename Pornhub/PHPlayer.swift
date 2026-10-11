@@ -166,7 +166,7 @@ private final class PHPlaybackController: UIViewController {
 
 /// Keep KSPlayer's native transport, progress and definition menu. Only replace
 /// its presentation hook: the app owns a scene-aware landscape-only controller.
-private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerDelegate {
+private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerDelegate, AVPictureInPictureControllerDelegate {
     var fullscreenAction: ((Bool) -> Void)?
     var qualitySelected: ((Int) -> Void)?
     private let progress = PHProgressSlider(frame: .zero)
@@ -284,11 +284,31 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         } else if pip.isPictureInPicturePossible {
             // Use public AVKit directly. KSPlayer's isPipActive=true helper
             // invokes UIApplication suspend; do not use that non-public path.
-            pip.delegate = layer
+            pip.delegate = self
             pip.startPictureInPicture()
         } else {
             showHUD("视频就绪后可开启画中画")
         }
+    }
+
+    func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        toolBar.pipButton.isSelected = true
+    }
+
+    func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        toolBar.pipButton.isSelected = false
+    }
+
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, failedToStartPictureInPictureWithError error: Error) {
+        toolBar.pipButton.isSelected = false
+        showHUD("画中画启动失败，请稍后重试")
+    }
+
+    func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+        // The owner remains in its original inline/landscape hierarchy; unlike
+        // upstream's pop/suspend helper, no navigation reconstruction is needed.
+        isMaskShow = true
+        completionHandler(window != nil)
     }
 
     private func showHUD(_ text: String) {
