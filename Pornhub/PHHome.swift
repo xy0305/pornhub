@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PHHomeView: View {
     @EnvironmentObject private var library: PHLibrary
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @StateObject private var model = PHHomeModel()
     @Binding var path: NavigationPath
     let present: (PHHomeSheet) -> Void
@@ -85,7 +86,7 @@ struct PHHomeView: View {
         Button { present(.search) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass").foregroundStyle(PHTheme.orange)
-                Text("搜索视频、明星、分类")
+                Text(dynamicTypeSize.isAccessibilitySize ? "搜索" : "搜索视频、明星、分类")
                     .font(.subheadline).foregroundStyle(PHTheme.secondary)
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.up.right").font(.caption.weight(.semibold))
@@ -270,6 +271,7 @@ struct PHMenuView: View {
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
+                        .accessibilityIdentifier("menu.destination.\(item.path)")
                     }
                 }
             }

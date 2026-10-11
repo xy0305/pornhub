@@ -33,7 +33,11 @@ final class InteractionTests: XCTestCase {
         app.buttons["取消"].tap()
         menu.tap()
         XCTAssertTrue(app.navigationBars["菜单"].waitForExistence(timeout: 5))
-        app.buttons["分类"].firstMatch.tap()
+        // The new home shortcut shares the visible title; target the modal row,
+        // not a firstMatch that may resolve to the covered root hierarchy.
+        let category = app.buttons["menu.destination./categories"]
+        XCTAssertTrue(category.isHittable)
+        category.tap()
         XCTAssertTrue(app.navigationBars["分类"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.navigationBars["菜单"].exists)
     }
