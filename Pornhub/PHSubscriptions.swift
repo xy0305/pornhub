@@ -108,6 +108,7 @@ struct PHServerSubscriptionsView: View {
                 }
                 if model.nextHref != nil {
                     Button("加载更多") { Task { await model.more() } }
+                        .buttonStyle(PHFilterButtonStyle())
                         .accessibilityIdentifier("subscriptions.more")
                         .disabled(model.loading)
                 }

@@ -252,6 +252,8 @@ struct PHProfileView: View {
                 }
                 if model.nextPage != nil {
                     Button("加载更多") { Task { await model.more() } }
+                        .buttonStyle(PHFilterButtonStyle())
+                        .padding(.horizontal, PHLayout.gutter)
                         .accessibilityIdentifier("profile.more")
                         .disabled(model.loading)
                 }

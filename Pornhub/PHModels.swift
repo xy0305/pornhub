@@ -40,24 +40,24 @@ struct PHQuality: Identifiable, Hashable, Codable {
     var isDefault: Bool
 }
 
-/// Resolution comes from source metadata, never from a site default flag.
-/// Unknown/adaptive sources remain usable, but never claim a made-up resolution.
 enum PHPlayerGesturePolicy {
     static func adjusted(initial: CGFloat, translation: CGFloat, height: CGFloat) -> CGFloat {
         min(1, max(0, initial - translation / max(180, height * 0.8)))
     }
 }
 
+/// Resolution comes from source metadata, never from a site default flag.
+/// Unknown/adaptive sources remain usable, but never claim a made-up resolution.
 enum PHQualityPolicy {
     static func ranked(_ qualities: [PHQuality]) -> [PHQuality] {
         var seen = Set<URL>()
-        return qualities.filter {
-            ["http", "https"].contains($0.url.scheme?.lowercased() ?? "") &&
-            $0.url.host?.isEmpty == false && seen.insert($0.url).inserted
-        }.enumerated().sorted {
+        return qualities.enumerated().filter {
+            ["http", "https"].contains($0.element.url.scheme?.lowercased() ?? "") &&
+            $0.element.url.host?.isEmpty == false
+        }.sorted {
             let lhs = max(0, $0.element.height), rhs = max(0, $1.element.height)
             return lhs == rhs ? $0.offset < $1.offset : lhs > rhs
-        }.map(\.element)
+        }.map(\.element).filter { seen.insert($0.url).inserted }
     }
 }
 

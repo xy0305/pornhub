@@ -138,7 +138,8 @@ enum PHParser {
             guard string(row["format"]) == "hls", let raw = string(row["videoUrl"]), let url = URL(string: raw) else { continue }
             let rawQuality = string(row["quality"]) ?? ""
             let numeric = Int(rawQuality.hasSuffix("p") ? String(rawQuality.dropLast()) : rawQuality) ?? 0
-            let height = max(0, int(row["height"]) ?? numeric)
+            let declaredHeight = int(row["height"]) ?? 0
+            let height = max(0, declaredHeight > 0 ? declaredHeight : numeric)
             items.append(PHQuality(
                 label: height > 0 ? "\(height)p" : "自动",
                 height: height,

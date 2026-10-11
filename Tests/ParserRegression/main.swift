@@ -24,6 +24,12 @@ struct PHParserRegression {
             precondition(PHParser.qualities(from: nil).isEmpty)
             precondition(PHQualityPolicy.ranked(Array(qualities.reversed())).first?.height == 1080)
             precondition(PHQualityPolicy.ranked(qualities + qualities).count == 4)
+            let duplicateURL = URL(string: "https://media.example/shared")!
+            precondition(PHQualityPolicy.ranked([
+                PHQuality(label: "自动", height: 0, url: duplicateURL, isDefault: true),
+                PHQuality(label: "1080p", height: 1080, url: duplicateURL, isDefault: false)
+            ]).first?.height == 1080)
+            precondition(PHParser.qualities(from: [["format": "hls", "height": 0, "quality": "720", "videoUrl": "https://media.example/height-zero"]]).first?.height == 720)
             var intent = PHQualitySelection()
             precondition(intent.update(qualities, videoID: "a") == 0)
             intent.choose(qualities[2])
