@@ -1,0 +1,37 @@
+# 1.0.0 (10) — landscape brightness / route volume pan
+
+## Evidence and diagnosis (not a claimed device reproduction)
+
+Baseline main `5599849` (build9) was audited with Docs/Build9.md, Tests/PlayerChecks, PHPlayer.swift and the pinned KSPlayer 2.3.4 implementation. User reported poor usability without a precise symptom; no physical-device failure was reproduced here. Code-observed risks: one-shot gestureRecognizerShouldBegin returned false below 6pt (UIKit does not retry that recognizer for the same touch); upstream picked direction from instantaneous velocity and picked half at recognizer began, not touch-down; begin used slider value or fabricated 0 if unavailable; absolute displacement accumulated overscroll debt at a limit; upstream pan action ignores cancelled/failed; MPVolumeView was alpha .01 and lifecycle readiness was not checked; upstream playback-state rules could disable pans while paused. These are targeted risk reductions, not a proven single root cause.
+
+## Actual online source review
+
+Downloaded the official tagged Swift file and cloned both actual upstream repositories over HTTPS during this change. KSPlayer remains pinned at 2.3.4; no dependency upgrade.
+
+- https://github.com/kingslay/KSPlayer/blob/2.3.4/Sources/KSPlayer/Video/VideoPlayerView.swift — panGestureAction (around 660): locks instantaneous velocity at began, callbacks only began/changed/ended; panValue (415) uses velocity / 0x2800 for vertical changes. Upstream horizontal end is tied to internal scrollDirection and tmpPanValue.
+- https://github.com/kingslay/KSPlayer/blob/2.3.4/Sources/KSPlayer/Video/IOSVideoPlayerView.swift — panGestureBegan/Changed (243): left brightness/right volume, initial right slider value, per-event velocity accumulation and clamp; judgePanGesture (274) depends on playback/fullscreen state.
+- ZFPlayer reviewed at commit `1ede0b9fd80d52a1474201ee506285c9792acb46`:
+  - https://github.com/renzifeng/ZFPlayer/blob/1ede0b9fd80d52a1474201ee506285c9792acb46/ZFPlayer/Classes/Core/ZFPlayerGestureControl.m — shouldReceiveTouch records touch-side, one-finger pan; handlePan locks velocity axis, resets translation each callback, and unlike KS handles cancelled/failed through ended callback.
+  - https://github.com/renzifeng/ZFPlayer/blob/1ede0b9fd80d52a1474201ee506285c9792acb46/ZFPlayer/Classes/ControlView/ZFPlayerControlView.m — vertical changes brightness/volume by velocity.y / 10000; native percentage HUD. Adopt side/axis lock and continuous clamping, not frame-rate-dependent velocity integration.
+  - https://github.com/renzifeng/ZFPlayer/blob/1ede0b9fd80d52a1474201ee506285c9792acb46/ZFPlayer/Classes/Core/ZFPlayerController.m — public UISlider subview search, AVAudioSession.outputVolume fallback in getter, clamp in setter. We use current outputVolume at each new volume gesture, including legitimate zero, rather than trusting an unready slider or guessing zero.
+  - https://github.com/renzifeng/ZFPlayer/blob/1ede0b9fd80d52a1474201ee506285c9792acb46/ZFPlayer/Classes/ControlView/ZFVolumeBrightnessView.m — attaches MPVolumeView to keyWindow. Adopt early live-window attachment but not deprecated global keyWindow: attach to the existing player's scene-specific hierarchy.
+
+## Implemented
+
+- Reuse the one official UIPanGestureRecognizer, remove its targets with public removeTarget(nil, action:nil), install exactly one app target. Do not stack official and app volume mutations. Maximum one finger; existing delegate control/top/bottom/progress exclusions retained.
+- Record half at original touch receipt in player-local coordinates. `PHAdjustmentPan` waits inside the recognizer for 6pt cumulative translation and a 1.15 dominant axis. shouldBegin checks availability/conflicts only; slow starts are not prematurely failed. Direction and half stay locked. Consume direction-lock displacement, so no sudden output jump at lock.
+- Landscape vertical: left uses the window screen's brightness; right starts from AVAudioSession.outputVolume. Incremental point displacement divided by max(180, height * .8), clamp each output to 0...1. Immediate reversal at min/max, event-frequency independent away from saturation. HUD is noninteractive and reports requested percentage, not independently measured hardware success.
+- MPVolumeView retained, nonzero 100x44, alpha 1, not hidden, off the player bounds, attached ahead of first touch. Layout is prepared on window attachment and before slider lookup. Use UISlider.setValue and sendActions(.valueChanged); require a window and enabled slider. Missing/disabled slider yields native route/hardware-button fallback rather than fabricated success. No private API/class lookup/KVC/suspend.
+- MPVolumeView's internal UISlider hierarchy is **not an Apple-documented stable programmatic system-volume API** even though the UIKit types and event APIs are public. It is the common open-source best-effort adapter. Fixed-volume/AirPlay/Bluetooth routes, lifecycle timing and future OS hierarchy changes can still limit it. There is no unconditional hardware guarantee; real-device route testing remains required.
+- Cancellation/failed, player-window detachment, coordinate/bounds change and fullscreen change end state; vertical cancellation does not roll back already submitted continuous system values. Horizontal movement retains seek with existing production PHSeekSession preview, bounded displacement, completion/generation/play-intent restoration. Cancellation cancels rather than committing seek. No reliance on KSPlayer's inaccessible private horizontal state. Pending quality restoration / unrelated seek prevents new gestures; horizontal's own drag is permitted to continue.
+- Landscape adjustment can start while paused/buffering; replay/lock/seeking/pending checks preserved. Highest-quality/manual source selection, public PiP lifecycle, background audio, build8 top-left back/author/subscription isolation, Liquid Glass and single aspectFit player untouched apart from gesture integration.
+
+## Regression and boundaries
+
+Local Linux: 37 player architecture guards, 35 native UI contracts and Python fixture parser checks pass. PHSeekSession.swift hash unchanged; PHPlayer.swift hash updated for this audited build; unrelated protections retained.
+
+CI compiles/runs production PHAdjustmentPan with GestureRegression.swift: threshold/ambiguous diagonal, direction/half lock including center boundary and crossing, no lock jump, increment/event frequency, clamp and immediate reverse, end/cancel reset, bounds rotation cancellation. Existing Swift seek and catalog/quality/author/subscription regressions continue.
+
+Simulator XCUITest reuses actual PHNativePlayerView and real pan recognizer, real HUD and production UISlider event submission with a DEBUG-only isolated output adapter. Tests exercise first left/right drags, visible HUD not intercepting next gesture, both directions, valueChanged delivery and return. Fixture output is deliberately synthetic and never calls hardware volume or brightness; unavailable localhost sources do not establish real playback. Existing quality/header/profile/subscription UI tests remain.
+
+No real-account writes, login or subscription writes performed. No live playback, physical hardware brightness/volume (speaker/headphones/Bluetooth/AirPlay), real PiP/background/lock-screen playback or real-device UI acceptance claimed. Unsigned Release IPA is gated on CI compilation, executable regressions, Simulator tests and iphoneos build; consult the build's Actions result for actual execution outcome.

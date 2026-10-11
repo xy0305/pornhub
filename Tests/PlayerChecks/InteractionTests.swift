@@ -164,3 +164,39 @@ final class InteractionTests: XCTestCase {
         waitForExpectations(timeout: 5)
     }
 }
+
+// Synthetic output adapter: never evidence of Simulator/physical system volume.
+extension InteractionTests {
+    func testLandscapeAdjustmentRecognizerHUDAndOutputEvents() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-PHInteractionFixtures", "-PHQualityFixture", "-PHGestureFixture"]
+        app.launch()
+        XCTAssertTrue(app.buttons["横屏播放"].waitForExistence(timeout: 15))
+        app.buttons["横屏播放"].tap()
+        expectation(for: NSPredicate { _, _ in app.frame.width > app.frame.height }, evaluatedWith: app)
+        waitForExpectations(timeout: 10)
+        let hud = app.staticTexts["player.adjustmentHUD"]
+        // Use middle video area, outside top/bottom native transport controls.
+        func drag(_ x: CGFloat, _ from: CGFloat, _ to: CGFloat) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: from))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: to)), withVelocity: .slow, thenHoldForDuration: 0)
+        }
+        drag(0.25, 0.64, 0.38)
+        XCTAssertTrue(hud.waitForExistence(timeout: 5))
+        XCTAssertTrue(hud.label.contains("亮度"))
+        let brightnessOutput = hud.value as? String ?? ""
+        XCTAssertFalse(brightnessOutput.contains("brightness=0.5;"))
+        XCTAssertTrue(brightnessOutput.contains("volume=0.5;events=0"))
+        // Immediate next gesture works even while the HUD is visible.
+        drag(0.75, 0.64, 0.38)
+        XCTAssertTrue(hud.label.contains("音量"))
+        let volumeOutput = hud.value as? String ?? ""
+        XCTAssertFalse(volumeOutput.contains("volume=0.5;"))
+        XCTAssertFalse(volumeOutput.hasSuffix("events=0"), "Production UISlider valueChanged submission reaches adapter")
+        capture("Build10-adjustment-synthetic-output-not-system-volume")
+        drag(0.75, 0.38, 0.64)
+        XCTAssertTrue(hud.label.contains("音量"))
+        app.buttons["player.back"].tap()
+        XCTAssertTrue(app.buttons["横屏播放"].waitForExistence(timeout: 10))
+    }
+}

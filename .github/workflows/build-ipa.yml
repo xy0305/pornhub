@@ -41,6 +41,8 @@ jobs:
           python3 Tests/PlayerChecks/check.py
           swiftc -parse-as-library Pornhub/PHSeekSession.swift Tests/PlayerChecks/SeekRegression.swift -o /tmp/ph-seek-tests
           /tmp/ph-seek-tests
+          swiftc -parse-as-library Pornhub/PHModels.swift Pornhub/PHAdjustmentPan.swift Tests/PlayerChecks/GestureRegression.swift -o /tmp/ph-gesture-tests
+          /tmp/ph-gesture-tests
 
       - name: Run catalog regression tests
         run: |

@@ -173,10 +173,15 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     private let systemVolume = MPVolumeView(frame: .zero)
     private let adjustmentHUD = UILabel()
     private var hudDismiss: DispatchWorkItem?
-    private var verticalVolume = false
-    private var verticalGesture = false
-    private var adjustmentStart: CGFloat = 0
-    private var translationStart: CGFloat = 0
+    private var adjustmentPan = PHAdjustmentPan()
+    private var touchOrigin = CGPoint.zero
+    private var horizontalStart: Float = 0
+    private var horizontalTranslation: CGFloat = 0
+    #if DEBUG
+    private var fixtureVolume = UISlider()
+    private var fixtureBrightness: CGFloat = 0.5
+    private var fixtureOutput = false
+    #endif
     private let previewLabel = UILabel()
     private var seekSession = PHSeekSession()
     private var seekTimeout: DispatchWorkItem?
@@ -250,10 +255,25 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
             pip.widthAnchor.constraint(equalToConstant: 44),
             pip.heightAnchor.constraint(equalToConstant: 44)
         ])
+        // One recognizer, one target. Upstream locks using velocity and ignores
+        // cancelled/failed; do not allow its vertical output to run alongside ours.
+        panGesture.removeTarget(nil, action: nil)
+        panGesture.addTarget(self, action: #selector(handleAdjustmentPan(_:)))
+        panGesture.maximumNumberOfTouches = 1
         systemVolume.frame = CGRect(x: -120, y: 0, width: 100, height: 44)
-        systemVolume.alpha = 0.01
+        systemVolume.showsRouteButton = false
+        systemVolume.showsVolumeSlider = true
+        systemVolume.alpha = 1
         systemVolume.isUserInteractionEnabled = false
+        systemVolume.accessibilityElementsHidden = true
+        // Mounted in this player's scene/window before any input, not created
+        // lazily on the first swipe. Never hidden/zero-sized/alpha-near-zero.
         addSubview(systemVolume)
+        #if DEBUG
+        fixtureOutput = ProcessInfo.processInfo.arguments.contains("-PHGestureFixture")
+        fixtureVolume.value = 0.5
+        fixtureVolume.addTarget(self, action: #selector(fixtureVolumeChanged(_:)), for: .valueChanged)
+        #endif
         adjustmentHUD.textAlignment = .center
         adjustmentHUD.font = .systemFont(ofSize: 16, weight: .semibold)
         adjustmentHUD.textColor = .white
@@ -261,6 +281,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         adjustmentHUD.layer.cornerRadius = 14
         adjustmentHUD.clipsToBounds = true
         adjustmentHUD.isUserInteractionEnabled = false
+        adjustmentHUD.accessibilityIdentifier = "player.adjustmentHUD"
         adjustmentHUD.isHidden = true
         addSubview(adjustmentHUD)
         adjustmentHUD.translatesAutoresizingMaskIntoConstraints = false
@@ -322,50 +343,137 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     }
 
     private var publicVolumeSlider: UISlider? {
-        systemVolume.subviews.compactMap { $0 as? UISlider }.first
+        #if DEBUG
+        if fixtureOutput { return fixtureVolume }
+        #endif
+        guard systemVolume.window != nil else { return nil }
+        systemVolume.layoutIfNeeded()
+        // Public UIKit types/events, but MPVolumeView's internal hierarchy is
+        // NOT a documented Apple volume-setting API; fail safely if it changes.
+        return systemVolume.subviews.compactMap { $0 as? UISlider }.first
+    }
+
+    private var currentBrightness: CGFloat {
+        #if DEBUG
+        if fixtureOutput { return fixtureBrightness }
+        #endif
+        return (window?.screen ?? UIScreen.main).brightness
+    }
+
+    private func writeAdjustment(_ value: CGFloat) {
+        if adjustmentPan.side == .volume {
+            guard let slider = publicVolumeSlider, slider.isEnabled else {
+                showHUD("当前音频路由不可调，请使用设备音量按键")
+                return
+            }
+            slider.setValue(Float(value), animated: false)
+            slider.sendActions(for: .valueChanged)
+        } else {
+            #if DEBUG
+            if fixtureOutput { fixtureBrightness = value }
+            else { (window?.screen ?? UIScreen.main).brightness = value }
+            #else
+            (window?.screen ?? UIScreen.main).brightness = value
+            #endif
+        }
+        showHUD("\(adjustmentPan.side == .volume ? "音量" : "亮度") · \(Int(value * 100))%")
+        #if DEBUG
+        if fixtureOutput {
+            adjustmentHUD.accessibilityValue = "brightness=\(fixtureBrightness);volume=\(fixtureVolume.value);events=\(fixtureEvents)"
+        }
+        #endif
+    }
+
+    #if DEBUG
+    private var fixtureEvents = 0
+    @objc private func fixtureVolumeChanged(_ sender: UISlider) { fixtureEvents += 1 }
+    #endif
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        systemVolume.layoutIfNeeded()
+        if window == nil { finishAdjustmentPan(cancelled: true) }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if adjustmentPan.active && adjustmentPan.size != bounds.size {
+            finishAdjustmentPan(cancelled: true)
+        }
     }
 
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === panGesture else { return true }
-        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return false }
-        let velocity = panGesture.velocity(in: self)
-        let translation = panGesture.translation(in: self)
-        guard max(abs(translation.x), abs(translation.y)) >= 6 else { return false }
-        return abs(velocity.x) > abs(velocity.y) || landscapeButton.isSelected
+        // UIKit's one-shot shouldBegin must not reject a slowly starting swipe
+        // merely because its current translation has not crossed our deadzone.
+        return !isLock && !replayButton.isSelected && !seekSession.blocksProgress && pendingQualitySeek == nil
     }
 
-    override func panGestureBegan(location point: CGPoint, direction: KSPanDirection) {
-        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return }
-        verticalGesture = direction == .vertical && landscapeButton.isSelected
-        if verticalGesture {
-            verticalVolume = point.x >= bounds.width / 2
-            adjustmentStart = verticalVolume ? CGFloat(publicVolumeSlider?.value ?? 0) : UIScreen.main.brightness
-            translationStart = panGesture.translation(in: self).y
-        } else {
-            super.panGestureBegan(location: point, direction: direction)
+    @objc private func handleAdjustmentPan(_ pan: UIPanGestureRecognizer) {
+        switch pan.state {
+        case .began:
+            adjustmentPan.begin(origin: touchOrigin, size: bounds.size)
+            processAdjustmentPan(pan)
+        case .changed:
+            processAdjustmentPan(pan)
+        case .ended:
+            processAdjustmentPan(pan)
+            finishAdjustmentPan(cancelled: false)
+        case .cancelled, .failed:
+            finishAdjustmentPan(cancelled: true)
+        default: break
         }
     }
 
-    override func panGestureChanged(velocity point: CGPoint, direction: KSPanDirection) {
-        guard !seekSession.blocksProgress, pendingQualitySeek == nil else { return }
-        if verticalGesture {
-            let value = PHPlayerGesturePolicy.adjusted(initial: adjustmentStart, translation: panGesture.translation(in: self).y - translationStart, height: bounds.height)
-            if verticalVolume {
-                guard let slider = publicVolumeSlider else { showHUD("请使用设备音量按键"); return }
-                slider.setValue(Float(value), animated: false)
-                slider.sendActions(for: .valueChanged)
+    private func processAdjustmentPan(_ pan: UIPanGestureRecognizer) {
+        guard adjustmentPan.active else { return }
+        guard adjustmentPan.size == bounds.size, pendingQualitySeek == nil, !isLock,
+              !seekSession.blocksProgress || adjustmentPan.axis == .horizontal else {
+            finishAdjustmentPan(cancelled: true); return
+        }
+        let translation = pan.translation(in: self)
+        let initial: CGFloat
+        if adjustmentPan.side == .volume {
+            #if DEBUG
+            initial = fixtureOutput ? CGFloat(fixtureVolume.value) : CGFloat(AVAudioSession.sharedInstance().outputVolume)
+            #else
+            initial = CGFloat(AVAudioSession.sharedInstance().outputVolume)
+            #endif
+        } else { initial = currentBrightness }
+        if adjustmentPan.lock(translation: translation, initial: initial) {
+            if adjustmentPan.axis == .horizontal {
+                guard KSOptions.enablePlaytimeGestures, progress.isEnabled,
+                      seekSession.begin(value: Double(progress.value), duration: totalTime) else {
+                    adjustmentPan.end(); return
+                }
+                horizontalStart = progress.value
+                horizontalTranslation = translation.x
+                seekTimeout?.cancel()
+                isMaskShow = true
+                showPreview()
             } else {
-                UIScreen.main.brightness = value
+                guard landscapeButton.isSelected else { adjustmentPan.end(); return }
+                writeAdjustment(adjustmentPan.value)
             }
-            showHUD("\(verticalVolume ? "音量" : "亮度") · \(Int(value * 100))%")
-        } else {
-            super.panGestureChanged(velocity: point, direction: direction)
+        }
+        if adjustmentPan.axis == .vertical,
+           let value = adjustmentPan.update(translation: translation, size: bounds.size) {
+            writeAdjustment(value)
+        } else if adjustmentPan.axis == .horizontal {
+            let value = Double(horizontalStart) + Double((translation.x - horizontalTranslation) / max(1, bounds.width)) * totalTime
+            seekSession.move(value: value, duration: totalTime)
+            showPreview()
         }
     }
 
-    override func panGestureEnded() {
-        if !verticalGesture { super.panGestureEnded() }
-        verticalGesture = false
+    private func finishAdjustmentPan(cancelled: Bool) {
+        let horizontal = adjustmentPan.active && adjustmentPan.axis == .horizontal
+        adjustmentPan.end() // clear before callbacks/recognizer enable changes
+        if horizontal {
+            if cancelled { progressCancelled() } else { progressEnded() }
+        }
+        // Brightness/volume commit continuously; cancellation never rolls back
+        // a system value and never commits a horizontal seek.
     }
 
     private func configureProgress() {
@@ -448,12 +556,17 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
             if view is UIControl { return false }
             ancestor = view.superview
         }
+        if gestureRecognizer === panGesture {
+            touchOrigin = touch.location(in: self)
+        }
         return !seekSession.blocksProgress && pendingQualitySeek == nil
     }
 
     override func judgePanGesture() {
         super.judgePanGesture()
-        if seekSession.blocksProgress { panGesture.isEnabled = false }
+        // Brightness/route volume work while paused or buffering in landscape.
+        if landscapeButton.isSelected && !replayButton.isSelected { panGesture.isEnabled = true }
+        if seekSession.blocksProgress || pendingQualitySeek != nil { panGesture.isEnabled = false }
     }
 
     @objc private func progressBegan() {
@@ -620,6 +733,11 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
     }
 
     func setFullscreenControls(_ fullscreen: Bool) {
+        if landscapeButton.isSelected != fullscreen { finishAdjustmentPan(cancelled: true) }
+        #if DEBUG
+        // Unplayable URL fixture tests recognizer/HUD/output events, not playback.
+        if fixtureOutput { pendingQualitySeek = nil }
+        #endif
         landscapeButton.isSelected = fullscreen
         landscapeButton.isHidden = false
         landscapeButton.accessibilityLabel = fullscreen ? "退出横屏" : "横屏播放"
@@ -634,6 +752,7 @@ private final class PHNativePlayerView: IOSVideoPlayerView, UIGestureRecognizerD
         toolBar.pipButton.isHidden = false
         isMaskShow = true
         refreshQualityMenu()
+        judgePanGesture()
     }
 
     override func player(layer: KSPlayerLayer, state: KSPlayerState) {
